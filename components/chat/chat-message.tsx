@@ -85,11 +85,14 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
       });
   };
 
-  // Function to handle edit message (placeholder)
+  // Function to handle edit message
   const handleEdit = () => {
-    // This would typically need to be implemented in the parent component
-    // For now, just show a toast notification
-    toast.info("Edit functionality would be implemented here");
+    if (message.role === 'user') {
+      const event = new CustomEvent('editMessage', { 
+        detail: { messageId: message.id, content: message.content } 
+      });
+      window.dispatchEvent(event);
+    }
   };
 
   // Function to handle pin/unpin

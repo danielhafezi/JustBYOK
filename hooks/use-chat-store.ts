@@ -231,6 +231,30 @@ export function useChatStore() {
     return newMessage;
   };
 
+  // Update a message in a chat
+  const updateMessage = (chatId: string, messageId: string, content: string) => {
+    if (!chatId || !messageId) return;
+    
+    setChats(prevChats => 
+      (Array.isArray(prevChats) ? prevChats : []).map(chat => {
+        if (chat?.id === chatId) {
+          const updatedMessages = chat.messages.map(message => 
+            message.id === messageId 
+              ? { ...message, content } 
+              : message
+          );
+          
+          return {
+            ...chat,
+            messages: updatedMessages,
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      })
+    );
+  };
+
   // Clear all messages from a chat
   const clearMessages = (chatId: string) => {
     if (!chatId) return;
@@ -296,6 +320,7 @@ export function useChatStore() {
     moveChatToFolder,
     reorderFolders,
     addMessage,
+    updateMessage,
     clearMessages,
     changeModel,
     searchChats,

@@ -50,6 +50,8 @@ export default function Home() {
   const [modelSettingsDialogOpen, setModelSettingsDialogOpen] = useState(false);
   const [pinnedMessagesDialogOpen, setPinnedMessagesDialogOpen] = useState(false);
   const [showPinnedMessages, setShowPinnedMessages] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string>('');
   
   const {
     chats,
@@ -62,6 +64,7 @@ export default function Home() {
     deleteChat,
     deleteFolder,
     addMessage,
+    updateMessage,
     changeModel,
     searchChats,
     updateChat,
@@ -123,9 +126,42 @@ export default function Home() {
     }
   }, [uiMessages, isAssistantTyping]);
 
+  // Listen for edit message events
+  useEffect(() => {
+    const handleEditMessageEvent = (event: CustomEvent) => {
+      const { messageId, content } = event.detail;
+      setEditingMessageId(messageId);
+      setEditingContent(content);
+    };
+
+    window.addEventListener('editMessage', handleEditMessageEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('editMessage', handleEditMessageEvent as EventListener);
+    };
+  }, []);
+
   // Handle sending a new message
   const handleSendMessage = (content: string) => {
     if (!currentChat || !content.trim()) return;
+
+    // If we're editing a message
+    if (editingMessageId) {
+      // Update the message in the store
+      updateMessage(currentChat.id, editingMessageId, content);
+      
+      // Update UI messages
+      setUiMessages(prev => prev.map(msg => 
+        msg.id === editingMessageId ? { ...msg, content } : msg
+      ));
+      
+      // Reset editing state
+      setEditingMessageId(null);
+      setEditingContent('');
+      
+      toast.success('Message updated');
+      return;
+    }
     
     // Create user message
     const userMessage = {
@@ -199,6 +235,12 @@ export default function Home() {
     if (currentChat && messageId) {
       togglePinMessage(currentChat.id, messageId);
     }
+  };
+
+  // Handle canceling edit mode
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
   };
 
   // Toggle sidebar
@@ -497,6 +539,9 @@ export default function Home() {
                 onSubmit={handleSendMessage}
                 onStop={handleStopResponse}
                 onFileUpload={handleFileUpload}
+                isEditing={!!editingMessageId}
+                editingContent={editingContent}
+                onCancelEdit={handleCancelEdit}
               />
             )}
           </>
