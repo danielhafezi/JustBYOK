@@ -17,6 +17,7 @@ interface ChatMessageProps {
 export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
   const [timeAgo, setTimeAgo] = useState<string>('');
   const [isHovering, setIsHovering] = useState(false);
+  const [messageTime, setMessageTime] = useState<string>('');
 
   // Ensure model is valid
   const validModel = ['smart', 'openai', 'anthropic', 'gemini'].includes(model) ? model : 'openai';
@@ -30,8 +31,14 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
       
       try {
         const now = new Date();
-        const messageTime = new Date(message.createdAt);
-        const diffInSeconds = Math.floor((now.getTime() - messageTime.getTime()) / 1000);
+        const messageDate = new Date(message.createdAt);
+        
+        // Format the time in 24-hour format (00:00)
+        const hours = messageDate.getHours().toString().padStart(2, '0');
+        const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+        setMessageTime(`${hours}:${minutes}`);
+        
+        const diffInSeconds = Math.floor((now.getTime() - messageDate.getTime()) / 1000);
         
         if (diffInSeconds < 60) {
           setTimeAgo('just now');
@@ -118,6 +125,13 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
+        {/* Time display on hover */}
+        {isHovering && messageTime && (
+          <div className="absolute -top-6 right-4 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md">
+            {messageTime}
+          </div>
+        )}
+        
         {/* Message bubble */}
         <div className="bg-primary text-primary-foreground rounded-tl-2xl rounded-bl-2xl rounded-tr-md rounded-br-2xl py-2 px-4 max-w-[80%] inline-block relative">
           <div className="prose dark:prose-invert prose-sm">
@@ -171,6 +185,13 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
+      {/* Time display on hover */}
+      {isHovering && messageTime && (
+        <div className="absolute -top-6 left-4 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md">
+          {messageTime}
+        </div>
+      )}
+      
       <div className="flex-1 max-w-[95%] relative">
         <div className="prose dark:prose-invert prose-sm">
           <ReactMarkdown>{message.content}</ReactMarkdown>

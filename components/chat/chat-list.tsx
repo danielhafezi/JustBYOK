@@ -252,6 +252,14 @@ export function ChatList({
   };
 
   const displayChats = (searchQuery?.trim() && Array.isArray(searchResults)) ? searchResults : (Array.isArray(chats) ? chats : []);
+  
+  // Separate favorite chats and sort them by updatedAt
+  const favoriteChats = displayChats
+    .filter(chat => !chat.folderId && chat.favorite)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  
+  // Non-favorite chats (outside folders)
+  const nonFavoriteChats = displayChats.filter(chat => !chat.folderId && !chat.favorite);
 
   return (
     <div className="flex h-full flex-col">
@@ -388,6 +396,7 @@ export function ChatList({
                         className="text-[10px] px-1.5 py-0.5 h-5 justify-start"
                         onClick={() => handleFolderSettings(folder)}
                       >
+                        <Settings className="h-3 w-3 mr-1" />
                         Folder Settings
                       </Button>
                     </div>
@@ -522,144 +531,301 @@ export function ChatList({
               </div>
             ))}
             
-            {/* Ungrouped Chats */}
-            {chats.filter(chat => !chat.folderId).map((chat) => (
-              <div 
-                key={chat.id} 
-                className={cn(
-                  "group relative hover:bg-muted/50 rounded-md transition-opacity",
-                  draggedChat === chat.id && "opacity-50",
-                )}
-                draggable
-                onDragStart={(e) => handleDragStart(e, chat.id)}
-              >
-                {isRenaming === chat.id ? (
-                  <div className="flex items-center space-x-2 p-2">
-                    <Input
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => handleRenameKeyDown(e, chat.id)}
-                      onBlur={() => handleRename(chat.id)}
-                      autoFocus
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                ) : (
-                  <Button
-                    variant={chat.id === currentChatId ? 'secondary' : 'ghost'}
-                    className={cn(
-                      'w-full justify-start text-sm',
-                      chat.id === currentChatId && 'bg-secondary'
-                    )}
-                    onClick={() => onSelectChat(chat.id)}
-                  >
-                    <div className="flex w-full items-center">
-                      <div className="mr-2">{getModelIcon(chat.model)}</div>
-                      <span className="truncate">{chat.title}</span>
-                    </div>
-                  </Button>
-                )}
-                
-                {/* Star button */}
-                {!isRenaming && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "absolute right-8 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
-                      chat.favorite ? "text-yellow-500" : "text-muted-foreground"
-                    )}
-                    onClick={(e) => handleToggleFavorite(e, chat.id)}
-                  >
-                    <Star className={cn(
-                      "h-4 w-4",
-                      chat.favorite ? "fill-current" : ""
-                    )} />
-                  </Button>
-                )}
-                
-                {/* Context menu */}
-                {!isRenaming && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36">
-                      {onRenameChat && (
-                        <DropdownMenuItem 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartRename(chat);
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Rename
-                        </DropdownMenuItem>
+            {/* Favorite Chats - displayed right under folders */}
+            {favoriteChats.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  Favorites
+                </div>
+                <div className="space-y-1">
+                  {favoriteChats.map((chat) => (
+                    <div 
+                      key={chat.id} 
+                      className={cn(
+                        "group relative hover:bg-muted/50 rounded-md transition-opacity",
+                        draggedChat === chat.id && "opacity-50",
                       )}
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onToggleFavorite) onToggleFavorite(chat.id);
-                        }}
-                      >
-                        <Star className={cn(
-                          "mr-2 h-4 w-4",
-                          chat.favorite ? "fill-current text-yellow-500" : ""
-                        )} />
-                        {chat.favorite ? "Unfavorite" : "Favorite"}
-                      </DropdownMenuItem>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <FolderInput className="mr-2 h-4 w-4" />
-                          Move
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onMoveChat(chat.id, undefined);
-                            }}
-                          >
-                            <FolderOpen className="mr-2 h-4 w-4" />
-                            None
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {folders.map(folder => (
-                            <DropdownMenuItem
-                              key={folder.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, chat.id)}
+                    >
+                      {isRenaming === chat.id ? (
+                        <div className="flex items-center space-x-2 p-2">
+                          <Input
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                            onKeyDown={(e) => handleRenameKeyDown(e, chat.id)}
+                            onBlur={() => handleRename(chat.id)}
+                            autoFocus
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      ) : (
+                        <Button
+                          variant={chat.id === currentChatId ? 'secondary' : 'ghost'}
+                          className={cn(
+                            'w-full justify-start text-sm',
+                            chat.id === currentChatId && 'bg-secondary'
+                          )}
+                          onClick={() => onSelectChat(chat.id)}
+                        >
+                          <div className="flex w-full items-center">
+                            <div className="mr-2">{getModelIcon(chat.model)}</div>
+                            <span className="truncate">{chat.title}</span>
+                          </div>
+                        </Button>
+                      )}
+                      
+                      {/* Star button */}
+                      {!isRenaming && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "absolute right-8 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
+                            chat.favorite ? "text-yellow-500" : "text-muted-foreground"
+                          )}
+                          onClick={(e) => handleToggleFavorite(e, chat.id)}
+                        >
+                          <Star className={cn(
+                            "h-4 w-4",
+                            chat.favorite ? "fill-current" : ""
+                          )} />
+                        </Button>
+                      )}
+                      
+                      {/* Context menu */}
+                      {!isRenaming && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            {onRenameChat && (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartRename(chat);
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Rename
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onMoveChat(chat.id, folder.id);
+                                if (onToggleFavorite) onToggleFavorite(chat.id);
                               }}
                             >
-                              <FolderOpen className="mr-2 h-4 w-4" />
-                              {folder.name || 'Unnamed Folder'}
+                              <Star className={cn(
+                                "mr-2 h-4 w-4",
+                                chat.favorite ? "fill-current text-yellow-500" : ""
+                              )} />
+                              {chat.favorite ? "Unfavorite" : "Favorite"}
                             </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteChat(chat.id);
-                        }}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <FolderInput className="mr-2 h-4 w-4" />
+                                Move
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMoveChat(chat.id, undefined);
+                                  }}
+                                >
+                                  <FolderOpen className="mr-2 h-4 w-4" />
+                                  None
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {folders.map(folder => (
+                                  <DropdownMenuItem
+                                    key={folder.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onMoveChat(chat.id, folder.id);
+                                    }}
+                                  >
+                                    <FolderOpen className="mr-2 h-4 w-4" />
+                                    {folder.name || 'Unnamed Folder'}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteChat(chat.id);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
+            
+            {/* Ungrouped Non-Favorite Chats */}
+            {nonFavoriteChats.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  Chats
+                </div>
+                <div className="space-y-1">
+                  {nonFavoriteChats.map((chat) => (
+                    <div 
+                      key={chat.id} 
+                      className={cn(
+                        "group relative hover:bg-muted/50 rounded-md transition-opacity",
+                        draggedChat === chat.id && "opacity-50",
+                      )}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, chat.id)}
+                    >
+                      {isRenaming === chat.id ? (
+                        <div className="flex items-center space-x-2 p-2">
+                          <Input
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                            onKeyDown={(e) => handleRenameKeyDown(e, chat.id)}
+                            onBlur={() => handleRename(chat.id)}
+                            autoFocus
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      ) : (
+                        <Button
+                          variant={chat.id === currentChatId ? 'secondary' : 'ghost'}
+                          className={cn(
+                            'w-full justify-start text-sm',
+                            chat.id === currentChatId && 'bg-secondary'
+                          )}
+                          onClick={() => onSelectChat(chat.id)}
+                        >
+                          <div className="flex w-full items-center">
+                            <div className="mr-2">{getModelIcon(chat.model)}</div>
+                            <span className="truncate">{chat.title}</span>
+                          </div>
+                        </Button>
+                      )}
+                      
+                      {/* Star button */}
+                      {!isRenaming && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "absolute right-8 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
+                            chat.favorite ? "text-yellow-500" : "text-muted-foreground"
+                          )}
+                          onClick={(e) => handleToggleFavorite(e, chat.id)}
+                        >
+                          <Star className={cn(
+                            "h-4 w-4",
+                            chat.favorite ? "fill-current" : ""
+                          )} />
+                        </Button>
+                      )}
+                      
+                      {/* Context menu */}
+                      {!isRenaming && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-2.5 h-6 w-6 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            {onRenameChat && (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartRename(chat);
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Rename
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onToggleFavorite) onToggleFavorite(chat.id);
+                              }}
+                            >
+                              <Star className={cn(
+                                "mr-2 h-4 w-4",
+                                chat.favorite ? "fill-current text-yellow-500" : ""
+                              )} />
+                              {chat.favorite ? "Unfavorite" : "Favorite"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <FolderInput className="mr-2 h-4 w-4" />
+                                Move
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMoveChat(chat.id, undefined);
+                                  }}
+                                >
+                                  <FolderOpen className="mr-2 h-4 w-4" />
+                                  None
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {folders.map(folder => (
+                                  <DropdownMenuItem
+                                    key={folder.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onMoveChat(chat.id, folder.id);
+                                    }}
+                                  >
+                                    <FolderOpen className="mr-2 h-4 w-4" />
+                                    {folder.name || 'Unnamed Folder'}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteChat(chat.id);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             </>
           )}
         </div>

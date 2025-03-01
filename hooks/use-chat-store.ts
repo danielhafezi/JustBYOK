@@ -301,7 +301,7 @@ export function useChatStore() {
       chatId
     });
     
-    // Persist chat to IndexedDB to save pinnedMessageIds
+    // Persist chat to IndexedDB without clearing messages
     await chatDB.saveChat(updatedChat);
     
     console.log(`Message ${messageId} pin status toggled to: ${updatedMessage.isPinned}`);
@@ -436,10 +436,17 @@ export function useChatStore() {
       updatedAt: new Date()
     };
     
-    // Update local state with the new message FIRST before any async operations
-    setChats(prev => prev.map(chat => 
-      chat.id === chatId ? updatedChat : chat
-    ));
+setChats(prev => prev.map(chat => {
+  if (chat.id === chatId) {
+    return {
+      ...chat,
+      messages: [...chat.messages, newMessage],
+      title: newTitle,
+      updatedAt: new Date()
+    };
+  }
+  return chat;
+}));
     
     try {
       // Now handle async operations
@@ -450,12 +457,8 @@ export function useChatStore() {
         chatId
       });
       
-      // Persist chat to IndexedDB (don't overwrite the messages array)
-      await chatDB.saveChat({
-        ...updatedChat,
-        // Don't include messages as they're stored separately
-        messages: []
-      });
+      // Persist chat to IndexedDB without clearing messages
+      await chatDB.saveChat(updatedChat);
       
       // Log success for debugging
       console.log(`Message saved successfully: ${newMessage.id}`);
