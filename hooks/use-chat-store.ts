@@ -263,20 +263,18 @@ export function useChatStore() {
   // Add a message to a chat
   const addMessage = (chatId: string, message: Omit<Message, 'id' | 'createdAt'>) => {
     if (!chatId || !message?.content) return null;
-    
+
     const newMessage: Message = {
       id: generateId(),
       ...message,
       createdAt: new Date(),
     };
-    
-    setChats(
-      chats.map(chat => {
+
+    setChats(prevChats =>
+      prevChats.map(chat => {
         if (chat.id === chatId) {
           const updatedMessages = [...(chat.messages || []), newMessage];
-          
-          // If the title is still the default and this is a user message,
-          // use the message content to create a title
+
           const updatedChat = updateChatTitle(
             {
               ...chat,
@@ -285,13 +283,13 @@ export function useChatStore() {
             },
             updatedMessages
           );
-          
+
           return updatedChat;
         }
         return chat;
       })
     );
-    
+
     return newMessage;
   };
 
