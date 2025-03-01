@@ -1,0 +1,893 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+// PROJECT OVERVIEW
+This is an AI chatbot application allowing users to interact with different LLM models. 
+All data (API keys, user profiles, chat history) must be stored entirely client-side 
+with no server database requirements. The frontend is built with React and Next.js.
+
+// ARCHITECTURE APPROACH
+- All persistent data will be stored in browser's localStorage and IndexedDB
+- Similar to TypingMind, we'll use strategic key naming with a prefix (e.g., "APP_")
+- Chat history requires structured storage with optimization for large datasets
+- User preferences and API keys need secure local persistence
+
+// DATA STORAGE IMPLEMENTATION PLAN
+## Phase 1: Local Storage Core Implementation
+1. Create a storage utility wrapper (lib/storage.ts):
+   - Implement get/set/remove methods with JSON parsing
+   - Add prefix to all keys for namespace isolation
+   - Include serialization helpers for dates and complex objects
+   
+   ```typescript
+   // Example implementation
+   export const storage = {
+     get: <T>(key: string, defaultValue?: T): T => {
+       const rawValue = localStorage.getItem(`APP_${key}`);
+       if (!rawValue) return defaultValue as T;
+       try {
+         return JSON.parse(rawValue, (key, value) => {
+           // Handle date deserialization
+           if (key.endsWith('At') && typeof value === 'string') {
+             return new Date(value);
+           }
+           return value;
+         }) as T;
+       } catch (e) {
+         console.error(`Error parsing ${key}`, e);
+         return defaultValue as T;
+       }
+     },
+     set: (key: string, value: any): void => {
+       localStorage.setItem(`APP_${key}`, JSON.stringify(value));
+     },
+     remove: (key: string): void => {
+       localStorage.removeItem(`APP_${key}`);
+     }
+   };
+   ```
+
+2. Implement API Key Storage (lib/api-keys.ts):
+   - Create encrypted storage for API keys
+   - Include validation and masking functions
+   - Add methods for retrieving and updating keys
+   
+   ```typescript
+   export const apiKeyStorage = {
+     getOpenAIKey: () => storage.get<string>('useOpenAIKey', ''),
+     setOpenAIKey: (key: string) => storage.set('useOpenAIKey', key),
+     getAnthropicKey: () => storage.get<string>('useAnthropicKey', ''),
+     setAnthropicKey: (key: string) => storage.set('useAnthropicKey', key),
+     // Add methods for other providers
+     
+     // Helper to mask keys for display
+     maskApiKey: (key: string): string => {
+       if (!key) return '';
+       if (key.length <= 8) return '********';
+       return '••••••••' + key.slice(-4);
+     }
+   };
+   ```
+
+## Phase 2: User Settings & Preferences
+1. Create Settings Store (hooks/use-settings-store.ts):
+   - Implement React hook for accessing/updating settings
+   - Include theme, UI preferences, model defaults
+   - Save changes immediately to localStorage
+   
+   ```typescript
+   export function useSettingsStore() {
+     const [settings, setSettings] = useState<Settings>(() => loadInitialSettings());
+     
+     // Update a specific setting
+     const updateSetting = useCallback(<K extends keyof Settings>(
+       key: K, 
+       value: Settings[K]
+     ) => {
+       setSettings(prev => {
+         const updated = { ...prev, [key]: value };
+         storage.set('useSettings', updated);
+         return updated;
+       });
+     }, []);
+     
+     // Use specific setting getters for common operations
+     const toggleTheme = useCallback(() => {
+       updateSetting('themeMode', settings.themeMode === 'dark' ? 'light' : 'dark');
+     }, [settings.themeMode, updateSetting]);
+     
+     return {
+       settings,
+       updateSetting,
+       toggleTheme,
+       // Add other convenience methods
+     };
+   }
+   
+   function loadInitialSettings(): Settings {
+     return storage.get('useSettings', DEFAULT_SETTINGS);
+   }
+   ```
+
+## Phase 3: IndexedDB for Chat History
+1. Implement ChatDB (lib/chat-db.ts):
+   - Set up IndexedDB database with chat store
+   - Create indexes for efficient querying
+   - Implement CRUD operations
+   
+   ```typescript
+   import { openDB } from 'idb';
+
+   const dbPromise = openDB('chatApp', 1, {
+     upgrade(db) {
+       // Create stores
+       const chatStore = db.createObjectStore('chats', { keyPath: 'id' });
+       chatStore.createIndex('updatedAt', 'updatedAt');
+       chatStore.createIndex('folderId', 'folderId');
+       
+       const folderStore = db.createObjectStore('folders', { keyPath: 'id' });
+       folderStore.createIndex('updatedAt', 'updatedAt');
+       
+       const messageStore = db.createObjectStore('messages', { keyPath: 'id' });
+       messageStore.createIndex('chatId', 'chatId');
+       messageStore.createIndex('createdAt', 'createdAt');
+     }
+   });
+   
+   export const chatDB = {
+     // Chat operations
+     async saveChat(chat: Chat): Promise<string> {
+       const db = await dbPromise;
+       await db.put('chats', {
+         ...chat,
+         updatedAt: new Date()
+       });
+       return chat.id;
+     },
+     
+     async getChat(id: string): Promise<Chat | undefined> {
+       const db = await dbPromise;
+       return db.get('chats', id);
+     },
+     
+     async getAllChats(): Promise<Chat[]> {
+       const db = await dbPromise;
+       return db.getAllFromIndex('chats', 'updatedAt');
+     },
+     
+     async deleteChat(id: string): Promise<void> {
+       const db = await dbPromise;
+       await db.delete('chats', id);
+       // Also delete associated messages
+       const tx = db.transaction('messages', 'readwrite');
+       const msgIndex = tx.store.index('chatId');
+       let cursor = await msgIndex.openCursor(IDBKeyRange.only(id));
+       
+       while (cursor) {
+         await cursor.delete();
+         cursor = await cursor.continue();
+       }
+     },
+     
+     // Message operations
+     async saveMessage(message: Message): Promise<string> {
+       const db = await dbPromise;
+       await db.put('messages', {
+         ...message,
+         createdAt: message.createdAt || new Date()
+       });
+       return message.id;
+     },
+     
+     async getChatMessages(chatId: string): Promise<Message[]> {
+       const db = await dbPromise;
+       return db.getAllFromIndex('messages', 'chatId', chatId);
+     },
+     
+     // Folder operations
+     async saveFolder(folder: Folder): Promise<string> {
+       const db = await dbPromise;
+       await db.put('folders', {
+         ...folder,
+         updatedAt: new Date()
+       });
+       return folder.id;
+     },
+     
+     async getAllFolders(): Promise<Folder[]> {
+       const db = await dbPromise;
+       return db.getAllFromIndex('folders', 'updatedAt');
+     },
+     
+     async deleteFolder(id: string): Promise<void> {
+       const db = await dbPromise;
+       await db.delete('folders', id);
+     }
+   };
+   ```
+
+2. Create Chat Store Hook (hooks/use-chat-store.ts):
+   - Implement React hook to manage chat state
+   - Connect IndexedDB operations to React state
+   - Handle optimistic updates and UI feedback
+   
+   ```typescript
+   export function useChatStore() {
+     const [chats, setChats] = useState<Chat[]>([]);
+     const [folders, setFolders] = useState<Folder[]>([]);
+     const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+     const [isLoaded, setIsLoaded] = useState(false);
+     
+     // Load initial state
+     useEffect(() => {
+       const loadInitialData = async () => {
+         try {
+           const [loadedChats, loadedFolders] = await Promise.all([
+             chatDB.getAllChats(),
+             chatDB.getAllFolders()
+           ]);
+           
+           setChats(loadedChats);
+           setFolders(loadedFolders);
+           
+           // Set current chat to the most recent one or create new
+           if (loadedChats.length > 0) {
+             setCurrentChatId(loadedChats[0].id);
+           } else {
+             const newChat = createNewChatObject();
+             await chatDB.saveChat(newChat);
+             setChats([newChat]);
+             setCurrentChatId(newChat.id);
+           }
+         } catch (error) {
+           console.error('Error loading data:', error);
+           // Handle error case
+           const newChat = createNewChatObject();
+           setChats([newChat]);
+           setCurrentChatId(newChat.id);
+         } finally {
+           setIsLoaded(true);
+         }
+       };
+       
+       loadInitialData();
+     }, []);
+     
+     // Current chat getter
+     const currentChat = useMemo(() => 
+       chats.find(chat => chat.id === currentChatId) || null, 
+       [chats, currentChatId]
+     );
+     
+     // Create a new chat
+     const createChat = useCallback(async (model: AIModel = 'smart') => {
+       const newChat = createNewChatObject(model);
+       
+       // Optimistic update
+       setChats(prev => [newChat, ...prev]);
+       setCurrentChatId(newChat.id);
+       
+       // Persist to IndexedDB
+       await chatDB.saveChat(newChat);
+       
+       return newChat;
+     }, []);
+     
+     // Add message to chat
+     const addMessage = useCallback(async (
+       chatId: string, 
+       message: Omit<Message, 'id' | 'createdAt'>
+     ) => {
+       if (!chatId || !message?.content) return null;
+       
+       const newMessage: Message = {
+         id: generateId(),
+         ...message,
+         chatId,
+         createdAt: new Date()
+       };
+       
+       // Optimistic update
+       setChats(prev => 
+         prev.map(chat => {
+           if (chat.id === chatId) {
+             const updatedMessages = [...(chat.messages || []), newMessage];
+             const updatedChat = {
+               ...chat,
+               messages: updatedMessages,
+               updatedAt: new Date(),
+               // Update chat title if it's still default
+               title: chat.title === 'New Chat' && message.role === 'user'
+                 ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
+                 : chat.title
+             };
+             
+             return updatedChat;
+           }
+           return chat;
+         })
+       );
+       
+       // Persist to IndexedDB
+       await chatDB.saveMessage(newMessage);
+       
+       // Update chat's updatedAt time
+       const chatToUpdate = chats.find(c => c.id === chatId);
+       if (chatToUpdate) {
+         await chatDB.saveChat({
+           ...chatToUpdate,
+           updatedAt: new Date()
+         });
+       }
+       
+       return newMessage;
+     }, [chats]);
+     
+     // Create folder
+     const createFolder = useCallback(async () => {
+       const newFolder: Folder = {
+         id: generateId(),
+         name: '',
+         createdAt: new Date(),
+         updatedAt: new Date(),
+         chatIds: [],
+         isEditing: true
+       };
+       
+       // Optimistic update
+       setFolders(prev => [newFolder, ...prev]);
+       
+       // Persist to IndexedDB
+       await chatDB.saveFolder(newFolder);
+       
+       return newFolder;
+     }, []);
+     
+     // Move chat to folder
+     const moveChatToFolder = useCallback(async (
+       chatId: string, 
+       folderId: string | undefined
+     ) => {
+       // Update chat's folder reference
+       setChats(prev => prev.map(chat =>
+         chat.id === chatId
+           ? { ...chat, folderId, updatedAt: new Date() }
+           : chat
+       ));
+       
+       // Update folders' chat lists
+       setFolders(prev => prev.map(folder => {
+         if (folder.id === folderId) {
+           // Add to new folder
+           return {
+             ...folder,
+             chatIds: [...(folder.chatIds || []), chatId],
+             updatedAt: new Date()
+           };
+         } else if (folder.chatIds?.includes(chatId)) {
+           // Remove from other folders
+           return {
+             ...folder,
+             chatIds: folder.chatIds.filter(id => id !== chatId),
+             updatedAt: new Date()
+           };
+         }
+         return folder;
+       }));
+       
+       // Persist changes to IndexedDB
+       const chatToUpdate = chats.find(c => c.id === chatId);
+       if (chatToUpdate) {
+         await chatDB.saveChat({
+           ...chatToUpdate,
+           folderId,
+           updatedAt: new Date()
+         });
+       }
+       
+       // Update folders in IndexedDB
+       for (const folder of folders) {
+         if (folder.id === folderId || folder.chatIds?.includes(chatId)) {
+           await chatDB.saveFolder(folder);
+         }
+       }
+     }, [chats, folders]);
+     
+     // Return methods and state
+     return {
+       chats,
+       folders,
+       currentChat,
+       currentChatId,
+       isLoaded,
+       setCurrentChatId,
+       createChat,
+       addMessage,
+       createFolder,
+       moveChatToFolder,
+       // Add other methods...
+     };
+   }
+   
+   // Helper function
+   function createNewChatObject(model: AIModel = 'smart'): Chat {
+     return {
+       id: generateId(),
+       title: 'New Chat',
+       messages: [],
+       model,
+       createdAt: new Date(),
+       updatedAt: new Date()
+     };
+   }
+   
+   function generateId(): string {
+     return Math.random().toString(36).substring(2, 10);
+   }
+   ```
+
+## Phase 4: User Profiles & API Key Management
+1. Create User Profile Store (hooks/use-profile-store.ts):
+   - Store user information securely
+   - Add custom instructions and preferences
+   
+   ```typescript
+   export function useProfileStore() {
+     const [profiles, setProfiles] = useState<UserProfile[]>(() => 
+       storage.get('useUserProfiles', [])
+     );
+     const [currentProfileId, setCurrentProfileId] = useState<string>(() => 
+       storage.get('useCurrentProfileId', '')
+     );
+     
+     // Save profiles whenever they change
+     useEffect(() => {
+       storage.set('useUserProfiles', profiles);
+     }, [profiles]);
+     
+     // Save current profile ID whenever it changes
+     useEffect(() => {
+       storage.set('useCurrentProfileId', currentProfileId);
+     }, [currentProfileId]);
+     
+     // Create new profile
+     const createProfile = useCallback((profileData: Partial<UserProfile>) => {
+       const newProfile: UserProfile = {
+         id: generateId(),
+         name: profileData.name || 'Default Profile',
+         information: profileData.information || '',
+         customInstruction: profileData.customInstruction || '',
+         createdAt: new Date()
+       };
+       
+       setProfiles(prev => [...prev, newProfile]);
+       
+       // If first profile, set as current
+       if (profiles.length === 0 || !currentProfileId) {
+         setCurrentProfileId(newProfile.id);
+       }
+       
+       return newProfile;
+     }, [profiles, currentProfileId]);
+     
+     // Update profile
+     const updateProfile = useCallback((
+       profileId: string, 
+       updates: Partial<UserProfile>
+     ) => {
+       setProfiles(prev => 
+         prev.map(profile => 
+           profile.id === profileId
+             ? { ...profile, ...updates }
+             : profile
+         )
+       );
+     }, []);
+     
+     // Delete profile
+     const deleteProfile = useCallback((profileId: string) => {
+       setProfiles(prev => prev.filter(profile => profile.id !== profileId));
+       
+       // If current profile is deleted, select another one
+       if (currentProfileId === profileId) {
+         const remainingProfiles = profiles.filter(p => p.id !== profileId);
+         if (remainingProfiles.length > 0) {
+           setCurrentProfileId(remainingProfiles[0].id);
+         } else {
+           setCurrentProfileId('');
+         }
+       }
+     }, [profiles, currentProfileId]);
+     
+     // Get current profile
+     const currentProfile = useMemo(() => 
+       profiles.find(p => p.id === currentProfileId),
+       [profiles, currentProfileId]
+     );
+     
+     return {
+       profiles,
+       currentProfile,
+       currentProfileId,
+       setCurrentProfileId,
+       createProfile,
+       updateProfile,
+       deleteProfile
+     };
+   }
+   ```
+
+2. Implement API Key Manager Component:
+   - Create UI for inputting and managing API keys
+   - Include secure storage and masking functionality
+   
+   ```tsx
+   export function ApiKeysDialog({ 
+     open, 
+     onOpenChange 
+   }: ApiKeysDialogProps) {
+     // Load API keys from storage
+     const [openaiKey, setOpenaiKey] = useState<string>('');
+     const [anthropicKey, setAnthropicKey] = useState<string>('');
+     const [geminiKey, setGeminiKey] = useState<string>('');
+     
+     // Load keys on dialog open
+     useEffect(() => {
+       if (open) {
+         setOpenaiKey(apiKeyStorage.getOpenAIKey());
+         setAnthropicKey(apiKeyStorage.getAnthropicKey());
+         setGeminiKey(apiKeyStorage.getGeminiKey());
+       }
+     }, [open]);
+     
+     // Handle changing an API key
+     const handleChangeKey = (
+       provider: 'openai' | 'anthropic' | 'gemini', 
+       newKey: string | null
+     ) => {
+       // If newKey is null, prompt the user for input
+       if (newKey === null) {
+         const promptedKey = prompt(`Enter your ${provider} API Key:`);
+         if (!promptedKey) return; // User cancelled
+         newKey = promptedKey.trim();
+       }
+       
+       // Store the key based on provider
+       switch (provider) {
+         case 'openai':
+           apiKeyStorage.setOpenAIKey(newKey);
+           setOpenaiKey(newKey);
+           break;
+         case 'anthropic':
+           apiKeyStorage.setAnthropicKey(newKey);
+           setAnthropicKey(newKey);
+           break;
+         case 'gemini':
+           apiKeyStorage.setGeminiKey(newKey);
+           setGeminiKey(newKey);
+           break;
+       }
+       
+       toast.success(`${provider} API key updated`);
+     };
+     
+     return (
+       <Dialog open={open} onOpenChange={onOpenChange}>
+         <DialogContent className="sm:max-w-[485px]">
+           <DialogHeader>
+             <DialogTitle className="text-center text-xl font-bold mb-2">
+               Manage your API keys
+             </DialogTitle>
+             <DialogDescription className="text-center text-sm">
+               Your API Keys are stored locally on your browser and never sent anywhere else.
+             </DialogDescription>
+           </DialogHeader>
+           
+           <div className="space-y-6 py-4">
+             {/* OpenAI API Key */}
+             <div>
+               <div className="flex mb-2">
+                 <span className="font-medium">OpenAI API Key:</span>
+                 <a 
+                   href="https://platform.openai.com/api-keys" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="text-blue-600 dark:text-blue-500 hover:underline text-sm ml-2"
+                 >
+                   (Get API key here)
+                 </a>
+               </div>
+               <div className="flex items-center bg-gray-200 dark:bg-gray-800 rounded-md overflow-hidden">
+                 <div className="flex items-center flex-1 p-3">
+                   <div className="flex items-center gap-2">
+                     <Lock className="h-4 w-4 text-red-500" />
+                     <span className="font-mono text-sm">
+                       {apiKeyStorage.maskApiKey(openaiKey)}
+                     </span>
+                   </div>
+                 </div>
+                 <Button 
+                   variant="ghost" 
+                   className="h-full px-4 py-0 rounded-none border-l"
+                   onClick={() => handleChangeKey('openai', null)}
+                 >
+                   Change Key
+                 </Button>
+               </div>
+             </div>
+             
+             {/* Add other API key sections similarly */}
+           </div>
+         </DialogContent>
+       </Dialog>
+     );
+   }
+   ```
+
+## Phase 5: Integration with Chat UI Components
+1. Update Chat Panel Components:
+   - Connect storage layer to UI interactions
+   - Ensure real-time updates persist to storage
+   
+   ```tsx
+   export function ChatPanel({
+     isLoading,
+     model,
+     onModelChange,
+     onSubmit,
+     onStop,
+     onFileUpload,
+   }: ChatPanelProps) {
+     const [input, setInput] = useState('');
+     const inputRef = useRef<HTMLTextAreaElement>(null);
+     
+     // Handle form submission
+     const handleSubmit = (e: React.FormEvent) => {
+       e.preventDefault();
+       if (!input.trim()) return;
+       
+       onSubmit(input);
+       setInput('');
+     };
+     
+     // Handle key presses
+     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+       // Support Enter to send message (without shift)
+       if (e.key === 'Enter' && !e.shiftKey) {
+         e.preventDefault();
+         handleSubmit(e as unknown as React.FormEvent);
+       }
+     };
+     
+     // Implement file attachment
+     const handleFileClick = () => {
+       fileInputRef.current?.click();
+     };
+     
+     return (
+       <div className="bg-background">
+         <form onSubmit={handleSubmit} className="w-full">
+           {/* Textarea for input */}
+           <div className="px-2 pt-2">
+             <Textarea
+               ref={inputRef}
+               value={input}
+               onChange={(e) => setInput(e.target.value)}
+               onKeyDown={handleKeyDown}
+               placeholder="What do you want to know?"
+               className="min-h-10 resize-none border-none"
+               rows={1}
+               disabled={isLoading}
+             />
+           </div>
+           
+           {/* Bottom controls */}
+           <div className="flex items-center justify-between px-2 pb-2">
+             {/* Left-side controls */}
+             <div className="flex items-center gap-1">
+               <Button
+                 type="button"
+                 variant="ghost"
+                 size="sm"
+                 onClick={handleFileClick}
+                 className="h-7 w-7 p-0"
+                 disabled={isLoading}
+               >
+                 <Paperclip className="h-4 w-4" />
+               </Button>
+             </div>
+             
+             {/* Right-side controls */}
+             <div className="flex items-center gap-1">
+               {/* Model selector */}
+               <ModelSelector 
+                 model={model} 
+                 onModelChange={onModelChange} 
+               />
+               
+               {/* Send button */}
+               <Button
+                 type="submit"
+                 size="icon"
+                 variant="ghost"
+                 disabled={!input.trim() || isLoading}
+                 className="h-7 w-7 rounded-full"
+               >
+                 {isLoading ? (
+                   <StopCircle className="h-4 w-4" onClick={onStop} />
+                 ) : (
+                   <SendHorizontal className="h-4 w-4" />
+                 )}
+               </Button>
+             </div>
+           </div>
+         </form>
+       </div>
+     );
+   }
+   ```
+
+2. Update Main App Component:
+   - Connect hooks to main application
+   - Ensure persistence across page reloads
+   
+   ```tsx
+   export default function Home() {
+     // Use the custom hooks for storage
+     const {
+       chats,
+       folders,
+       currentChat,
+       currentChatId,
+       isLoaded,
+       setCurrentChatId,
+       createChat,
+       addMessage,
+       createFolder,
+       moveChatToFolder,
+       // Other methods...
+     } = useChatStore();
+     
+     const {
+       profiles,
+       currentProfile,
+       updateProfile,
+     } = useProfileStore();
+     
+     const { settings, updateSetting, toggleTheme } = useSettingsStore();
+     
+     // UI state
+     const [sidebarOpen, setSidebarOpen] = useState(true);
+     const [apiKeysDialogOpen, setApiKeysDialogOpen] = useState(false);
+     
+     // Handle sending a new message
+     const handleSendMessage = (content: string) => {
+       if (!currentChat || !content.trim()) return;
+       
+       // Add user message to chat
+       addMessage(currentChat.id, {
+         content,
+         role: 'user',
+       });
+       
+       // Process with AI (simulate for this example)
+       setTimeout(() => {
+         const response = "This is a simulated response from the AI.";
+         addMessage(currentChat.id, {
+           content: response,
+           role: 'assistant',
+         });
+       }, 1000);
+     };
+     
+     if (!isLoaded) {
+       return <div>Loading...</div>;
+     }
+     
+     return (
+       <div className="flex h-screen overflow-hidden">
+         {/* API Keys Dialog */}
+         <ApiKeysDialog 
+           open={apiKeysDialogOpen} 
+           onOpenChange={setApiKeysDialogOpen} 
+         />
+         
+         {/* Sidebar */}
+         {sidebarOpen && (
+           <div className="border-r bg-muted/40 w-64">
+             <ChatList
+               chats={chats}
+               folders={folders}
+               currentChatId={currentChatId}
+               onSelectChat={setCurrentChatId}
+               onCreateChat={createChat}
+               onCreateFolder={createFolder}
+               onMoveChat={moveChatToFolder}
+               // Other props...
+             />
+           </div>
+         )}
+         
+         {/* Main Content */}
+         <div className="flex flex-1 flex-col">
+           <header className="flex h-14 items-center justify-between border-b px-4">
+             <Button
+               variant="ghost"
+               size="icon"
+               onClick={() => setSidebarOpen(!sidebarOpen)}
+             >
+               {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+             </Button>
+             
+             <div className="flex items-center gap-2">
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 onClick={toggleTheme}
+               >
+                 {settings.themeMode === 'dark' ? <Sun /> : <Moon />}
+               </Button>
+               
+               <Button
+                 variant="ghost"
+                 onClick={() => setApiKeysDialogOpen(true)}
+               >
+                 API Keys
+               </Button>
+             </div>
+           </header>
+           
+           {/* Chat Area */}
+           {currentChat ? (
+             <>
+               <div className="flex-1 overflow-auto p-4">
+                 {currentChat.messages.map((message) => (
+                   <ChatMessage
+                     key={message.id}
+                     message={message}
+                     model={currentChat.model}
+                   />
+                 ))}
+               </div>
+               
+               {/* Chat Input */}
+               <ChatPanel
+                 isLoading={false}
+                 model={currentChat.model}
+                 onModelChange={(model) => {
+                   // Update model in storage
+                 }}
+                 onSubmit={handleSendMessage}
+                 onStop={() => {
+                   // Stop generating response
+                 }}
+               />
+             </>
+           ) : (
+             <div className="flex h-full items-center justify-center">
+               <Button onClick={createChat}>
+                 New Chat
+               </Button>
+             </div>
+           )}
+         </div>
+       </div>
+     );
+   }
+   ```
+
+// OPTIMIZATION STRATEGIES
+1. Batch updates to localStorage for better performance
+2. Implement a queue system for IndexedDB operations to avoid conflicts
+3. Add data migration support for schema upgrades
+4. Implement data export/import functionality for user backup
+5. Monitor storage limits and warn users when approaching browser limits
+
+// CODE ORGANIZATION PRINCIPLES
+1. Keep storage logic separate from UI components
+2. Use TypeScript interfaces for all data structures
+3. Implement proper error handling throughout the storage layer
+4. Follow React best practices (memoization, useCallback for handlers)
+5. Document all storage-related functions with JSDoc comments
