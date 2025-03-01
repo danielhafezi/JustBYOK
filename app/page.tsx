@@ -501,14 +501,35 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredMessages.map((message) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      model={currentChat.model}
-                      onTogglePin={handleTogglePin}
-                    />
-                  ))}
+                  {filteredMessages.reduce((acc, message, index, array) => {
+  const messageDate = new Date(message.createdAt).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric'
+  });
+  const prevMessageDate = index > 0 ? new Date(array[index - 1].createdAt).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric'
+  }) : null;
+
+  if (messageDate !== prevMessageDate) {
+    acc.push(
+      <div key={`date-separator-${messageDate}`} className="flex items-center my-4">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <span className="mx-4 text-xs text-gray-500">{messageDate}</span>
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
+    );
+  }
+
+  acc.push(
+    <ChatMessage
+      key={message.id}
+      message={message}
+      model={currentChat.model}
+      onTogglePin={handleTogglePin}
+    />
+  );
+
+  return acc;
+}, [])}
                   
                   {/* Assistant typing indicator */}
                   {isAssistantTyping && !showPinnedMessages && (
