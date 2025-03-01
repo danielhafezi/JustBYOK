@@ -210,28 +210,26 @@ export function ChatPanel({
           <div className="flex items-center justify-between px-2 pb-2">
             {/* Left side - Attachment & other tools */}
             <div className="flex items-center gap-1">
-              {/* Paperclip icon - only shown when not editing */}
-              {!isEditing && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleFileClick}
-                        className="h-7 w-7 p-0 text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 hover:bg-gray-300 dark:hover:bg-neutral-800 rounded-full"
-                        disabled={isLoading}
-                      >
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Attach a file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              {/* Paperclip icon - always shown */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleFileClick}
+                      className="h-7 w-7 p-0 text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 hover:bg-gray-300 dark:hover:bg-neutral-800 rounded-full"
+                      disabled={isLoading}
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Attach a file</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
               {/* Browse button with globe icon - always shown */}
               <TooltipProvider>
