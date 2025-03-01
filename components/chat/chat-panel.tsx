@@ -210,48 +210,49 @@ export function ChatPanel({
           <div className="flex items-center justify-between px-2 pb-2">
             {/* Left side - Attachment & other tools */}
             <div className="flex items-center gap-1">
+              {/* Paperclip icon - only shown when not editing */}
               {!isEditing && (
-                <>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleFileClick}
-                          className="h-7 w-7 p-0 text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 hover:bg-gray-300 dark:hover:bg-neutral-800 rounded-full"
-                          disabled={isLoading}
-                        >
-                          <Paperclip className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Attach a file</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  {/* Browse button with globe icon */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 rounded-full bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 p-0 active:bg-blue-500 dark:active:bg-blue-600 active:text-white dark:active:text-white focus:bg-blue-500 dark:focus:bg-blue-600 focus:text-white dark:focus:text-white"
-                        >
-                          <Globe className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Browse</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleFileClick}
+                        className="h-7 w-7 p-0 text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 hover:bg-gray-300 dark:hover:bg-neutral-800 rounded-full"
+                        disabled={isLoading}
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Attach a file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
+              
+              {/* Browse button with globe icon - always shown */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 rounded-full bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 p-0 active:bg-blue-500 dark:active:bg-blue-600 active:text-white dark:active:text-white focus:bg-blue-500 dark:focus:bg-blue-600 focus:text-white dark:focus:text-white"
+                    >
+                      <Globe className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Browse</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              {/* Cancel button - only shown when editing */}
               {isEditing && (
                 <TooltipProvider>
                   <Tooltip>
