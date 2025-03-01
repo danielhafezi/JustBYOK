@@ -1,494 +1,551 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft } from 'lucide-react';
-import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ModelSettings } from '@/lib/types';
+import { useSettingsStore } from '@/hooks/use-settings-store';
 
 interface ModelSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentModel: string;
 }
 
-export function ModelSettingsDialog({ 
-  open, 
+type SafetyLevel = 'none' | 'few' | 'some' | 'most';
+type SafetySettingKey = 'harassment' | 'hateSpeech' | 'sexuallyExplicit' | 'dangerous' | 'civicIntegrity';
+
+export function ModelSettingsDialog({
+  open,
   onOpenChange,
-  currentModel
 }: ModelSettingsDialogProps) {
-  // State for all model settings
-  const [contextLimit, setContextLimit] = useState<string>("All Previous Messages");
-  const [temperature, setTemperature] = useState<number>(0.7); // Default value
-  const [presencePenalty, setPresencePenalty] = useState<number>(0);
-  const [frequencyPenalty, setFrequencyPenalty] = useState<number>(0);
-  const [topP, setTopP] = useState<number>(0.9);
-  const [topK, setTopK] = useState<number>(40);
-  const [maxTokens, setMaxTokens] = useState<number>(4096);
+  const { 
+    settings, 
+    updateModelSettings, 
+    resetModelSettings 
+  } = useSettingsStore();
   
-  // Safety settings sliders
-  const [harassmentLevel, setHarassmentLevel] = useState<number>(75);
-  const [hateLevel, setHateLevel] = useState<number>(80);
-  const [sexualLevel, setSexualLevel] = useState<number>(85);
-  const [dangerousLevel, setDangerousLevel] = useState<number>(90);
-  const [civicLevel, setCivicLevel] = useState<number>(50);
-  
-  // Other settings
-  const [promptCaching, setPromptCaching] = useState<boolean>(true);
-  const [reasoningEffort, setReasoningEffort] = useState<string>("High");
+  const [localSettings, setLocalSettings] = useState<ModelSettings>(() => {
+    // Ensure safetySettings is initialized with default values if undefined
+    const modelSettings = settings.modelSettings;
+    return {
+      ...modelSettings,
+      safetySettings: modelSettings.safetySettings || {
+        harassment: 'none',
+        hateSpeech: 'none',
+        sexuallyExplicit: 'none',
+        dangerous: 'none',
+        civicIntegrity: 'some'
+      }
+    };
+  });
 
-  // Handle resetting to default
-  const handleResetToDefault = (setting: string) => {
-    switch(setting) {
-      case 'context':
-        setContextLimit("All Previous Messages");
-        toast.success("Context limit reset to default");
-        break;
-      case 'temperature':
-        setTemperature(0.7);
-        toast.success("Temperature reset to default");
-        break;
-      case 'presence':
-        setPresencePenalty(0);
-        toast.success("Presence penalty reset to default");
-        break;
-      case 'frequency':
-        setFrequencyPenalty(0);
-        toast.success("Frequency penalty reset to default");
-        break;
-      case 'topP':
-        setTopP(0.9);
-        toast.success("Top P reset to default");
-        break;
-      case 'topK':
-        setTopK(40);
-        toast.success("Top K reset to default");
-        break;
-      case 'maxTokens':
-        setMaxTokens(4096);
-        toast.success("Max tokens reset to default");
-        break;
-      case 'safety':
-        setHarassmentLevel(75);
-        setHateLevel(80);
-        setSexualLevel(85);
-        setDangerousLevel(90);
-        setCivicLevel(50);
-        toast.success("Safety settings reset to default");
-        break;
-      case 'reasoning':
-        setReasoningEffort("High");
-        toast.success("Reasoning effort reset to default");
-        break;
-      case 'all':
-        setContextLimit("All Previous Messages");
-        setTemperature(0.7);
-        setPresencePenalty(0);
-        setFrequencyPenalty(0);
-        setTopP(0.9);
-        setTopK(40);
-        setMaxTokens(4096);
-        setHarassmentLevel(75);
-        setHateLevel(80);
-        setSexualLevel(85);
-        setDangerousLevel(90);
-        setCivicLevel(50);
-        setPromptCaching(true);
-        setReasoningEffort("High");
-        toast.success("All settings reset to default");
-        break;
-    }
+  // Update local settings when stored settings change
+  useEffect(() => {
+    setLocalSettings(prev => ({
+      ...settings.modelSettings,
+      safetySettings: settings.modelSettings.safetySettings || prev.safetySettings
+    }));
+  }, [settings.modelSettings]);
+
+  const handleSave = () => {
+    updateModelSettings(localSettings);
+    onOpenChange(false);
   };
 
-  // Label formatter for sliders
-  const formatSliderLabel = (value: number) => {
-    return value.toFixed(1);
+  const handleReset = () => {
+    resetModelSettings();
+    onOpenChange(false);
   };
 
-  // Get model display name
-  const getModelDisplayName = () => {
-    switch(currentModel) {
-      case 'openai':
-        return 'OpenAI GPT-4o';
-      case 'anthropic':
-        return 'Anthropic Claude 3';
-      case 'gemini':
-        return 'Google Gemini Pro';
-      case 'smart':
-        return 'Smart Selection';
-      default:
-        return 'AI Model';
-    }
+  const handleChange = (
+    key: keyof ModelSettings,
+    value: string | number | boolean | string[]
+  ) => {
+    setLocalSettings((prev: ModelSettings) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSafetySettingChange = (
+    setting: SafetySettingKey,
+    value: SafetyLevel
+  ) => {
+    setLocalSettings((prev: ModelSettings) => {
+      // Ensure safetySettings exists
+      const safetySettings = prev.safetySettings || {
+        harassment: 'none',
+        hateSpeech: 'none',
+        sexuallyExplicit: 'none',
+        dangerous: 'none',
+        civicIntegrity: 'some'
+      };
+      
+      return {
+        ...prev,
+        safetySettings: {
+          ...safetySettings,
+          [setting]: value,
+        },
+      };
+    });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8" 
-              onClick={() => onOpenChange(false)}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <DialogTitle className="text-xl font-bold">Model Settings</DialogTitle>
-          </div>
-          <DialogDescription className="text-center">
-            Customize {getModelDisplayName()} parameters for this chat
+          <DialogTitle>Model Settings</DialogTitle>
+          <DialogDescription>
+            Configure the AI model behavior and parameters
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-6 py-4">
-          {/* Context Limit */}
-          <div className="flex justify-between items-start">
-            <div>
-              <Label className="text-base font-medium">Context Limit: {contextLimit}</Label>
-              <p className="text-sm text-muted-foreground mt-1">
-                The number of messages to include in the context for the AI assistant. When set to 1, the AI assistant will only see and remember the most recent message.
+
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid grid-cols-3 mb-4">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+            <TabsTrigger value="safety">Safety</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="general" className="space-y-4">
+            {/* Stream AI responses toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="streamResponses" className="text-base">Stream AI responses word by word</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cost estimation will be less accurate when stream response is enabled
+                </p>
+              </div>
+              <Switch
+                id="streamResponses"
+                checked={localSettings.streamResponses}
+                onCheckedChange={(checked: boolean) => handleChange('streamResponses', checked)}
+              />
+            </div>
+
+            {/* Context Limit */}
+            <div className="grid gap-2">
+              <Label htmlFor="contextLimit">Context Limit</Label>
+              <Select 
+                value={localSettings.contextLimit} 
+                onValueChange={(value: string) => handleChange('contextLimit', value)}
+              >
+                <SelectTrigger id="contextLimit">
+                  <SelectValue placeholder="Select context limit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Previous Messages</SelectItem>
+                  <SelectItem value="last1">Last Message Only</SelectItem>
+                  <SelectItem value="last5">Last 5 Messages</SelectItem>
+                  <SelectItem value="last10">Last 10 Messages</SelectItem>
+                  <SelectItem value="last20">Last 20 Messages</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The number of messages to include in the context for the AI assistant
               </p>
             </div>
-            <Button 
-              variant="link" 
-              className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-              onClick={() => handleResetToDefault('context')}
-            >
-              (Reset to default)
-            </Button>
-          </div>
-          <Select value={contextLimit} onValueChange={setContextLimit}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select context limit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All Previous Messages">All Previous Messages</SelectItem>
-              <SelectItem value="Last 20 messages">Last 20 messages</SelectItem>
-              <SelectItem value="Last 10 messages">Last 10 messages</SelectItem>
-              <SelectItem value="Last 5 messages">Last 5 messages</SelectItem>
-              <SelectItem value="Last message only">Last message only</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {/* Temperature */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
+
+            {/* Temperature */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="temperature">Temperature: {localSettings.temperature.toFixed(1)}</Label>
+              </div>
+              <Slider
+                id="temperature"
+                min={0}
+                max={1}
+                step={0.1}
+                value={[localSettings.temperature]}
+                onValueChange={(values: number[]) => handleChange('temperature', values[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic
+              </p>
+            </div>
+
+            {/* Max Tokens */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="maxTokens">Max Tokens</Label>
+              </div>
+              <Input 
+                id="maxTokens"
+                type="number"
+                min="0"
+                max="32000"
+                value={localSettings.maxTokens === 0 ? "" : localSettings.maxTokens.toString()}
+                onChange={(e) => {
+                  const value = e.target.value === "" ? 0 : parseInt(e.target.value);
+                  handleChange('maxTokens', isNaN(value) ? 0 : Math.max(0, Math.min(32000, value)));
+                }}
+                placeholder="0 (no limit)"
+              />
+              <p className="text-xs text-muted-foreground">
+                The maximum number of tokens to generate before stopping (0 or empty means no limit)
+              </p>
+            </div>
+
+            {/* Default Model */}
+            <div className="grid gap-2">
+              <Label htmlFor="defaultModel">Default Model</Label>
+              <Select 
+                value={localSettings.defaultModel} 
+                onValueChange={(value: string) => handleChange('defaultModel', value as any)}
+              >
+                <SelectTrigger id="defaultModel">
+                  <SelectValue placeholder="Select default model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="smart">Smart (automatic selection)</SelectItem>
+                  <SelectItem value="openai">OpenAI GPT-4</SelectItem>
+                  <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                  <SelectItem value="gemini">Google Gemini</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The default model used for new conversations
+              </p>
+            </div>
+
+            {/* Prompt Caching */}
+            <div className="flex items-center justify-between">
               <div>
-                <Label className="text-base font-medium">Temperature: {temperature.toFixed(1)}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+                <Label htmlFor="promptCaching" className="text-base">Prompt Caching</Label>
+                <p className="text-xs text-muted-foreground">
+                  Prompt caching helps save token costs for long conversations. Enabling this will incur additional tokens when initiating the cache
                 </p>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('temperature')}
-              >
-                (Change)
-              </Button>
+              <Switch
+                id="promptCaching"
+                checked={localSettings.promptCaching}
+                onCheckedChange={(checked: boolean) => handleChange('promptCaching', checked)}
+              />
             </div>
-            <Slider 
-              value={[temperature]} 
-              min={0} 
-              max={1} 
-              step={0.1} 
-              onValueChange={(values) => setTemperature(values[0])} 
-            />
-          </div>
-          
-          {/* Presence Penalty */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Presence Penalty: {presencePenalty.toFixed(1)}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  How much to penalize new tokens based on whether they appear in the text so far. Increases the model's likelihood to talk about new topics.
-                </p>
+          </TabsContent>
+
+          <TabsContent value="advanced" className="space-y-4">
+            {/* Presence Penalty */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="presencePenalty">Presence Penalty: {localSettings.presencePenalty.toFixed(1)}</Label>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('presence')}
-              >
-                (Change)
-              </Button>
+              <Slider
+                id="presencePenalty"
+                min={0}
+                max={2}
+                step={0.1}
+                value={[localSettings.presencePenalty]}
+                onValueChange={(values: number[]) => handleChange('presencePenalty', values[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                How much to penalize new tokens based on whether they appear in the text so far
+              </p>
             </div>
-            <Slider 
-              value={[presencePenalty]} 
-              min={-2} 
-              max={2} 
-              step={0.1} 
-              onValueChange={(values) => setPresencePenalty(values[0])} 
-            />
-          </div>
-          
-          {/* Frequency Penalty */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Frequency Penalty: {frequencyPenalty.toFixed(1)}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  How much to penalize new tokens based on their existing frequency in the text so far. Decreases the model's likelihood to repeat the same line verbatim.
-                </p>
+
+            {/* Frequency Penalty */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="frequencyPenalty">Frequency Penalty: {localSettings.frequencyPenalty.toFixed(1)}</Label>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('frequency')}
-              >
-                (Change)
-              </Button>
+              <Slider
+                id="frequencyPenalty"
+                min={0}
+                max={2}
+                step={0.1}
+                value={[localSettings.frequencyPenalty]}
+                onValueChange={(values: number[]) => handleChange('frequencyPenalty', values[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                How much to penalize new tokens based on their existing frequency in the text so far
+              </p>
             </div>
-            <Slider 
-              value={[frequencyPenalty]} 
-              min={-2} 
-              max={2} 
-              step={0.1} 
-              onValueChange={(values) => setFrequencyPenalty(values[0])} 
-            />
-          </div>
-          
-          {/* Top P */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Top P: {topP.toFixed(1)}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.
-                </p>
+
+            {/* Top P */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="topP">Top P: {localSettings.topP.toFixed(1)}</Label>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('topP')}
-              >
-                (Change)
-              </Button>
+              <Slider
+                id="topP"
+                min={0}
+                max={1}
+                step={0.1}
+                value={[localSettings.topP]}
+                onValueChange={(values: number[]) => handleChange('topP', values[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                An alternative to sampling with temperature called nucleus sampling, where the model considers the results of the tokens with top_p probability mass
+              </p>
             </div>
-            <Slider 
-              value={[topP]} 
-              min={0.1} 
-              max={1} 
-              step={0.1} 
-              onValueChange={(values) => setTopP(values[0])} 
-            />
-          </div>
-          
-          {/* Top K */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Top K: {topK}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Only sample from the top K options for each subsequent token. Used to remove "long tail" low probability responses. Min: 0
-                </p>
+
+            {/* Top K */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="topK">Top K: {localSettings.topK}</Label>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('topK')}
-              >
-                (Change)
-              </Button>
+              <Slider
+                id="topK"
+                min={0}
+                max={100}
+                step={1}
+                value={[localSettings.topK]}
+                onValueChange={(values: number[]) => handleChange('topK', values[0])}
+              />
+              <p className="text-xs text-muted-foreground">
+                Only sample from the top K options for each subsequent token
+              </p>
             </div>
-            <Slider 
-              value={[topK]} 
-              min={0} 
-              max={100} 
-              step={1} 
-              onValueChange={(values) => setTopK(values[0])} 
-            />
-          </div>
-          
-          {/* Max Tokens */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Max Tokens: {maxTokens}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  The maximum number of tokens to generate before stopping.
-                </p>
+
+            {/* Reasoning Effort */}
+            <div className="grid gap-2">
+              <Label htmlFor="reasoningEffort">Reasoning Effort</Label>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  className={`px-3 py-1 rounded-md ${
+                    localSettings.reasoningEffort <= 0.3 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-secondary text-secondary-foreground'
+                  }`}
+                  onClick={() => handleChange('reasoningEffort', 0.25)}
+                >
+                  Low
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1 rounded-md ${
+                    localSettings.reasoningEffort > 0.3 && localSettings.reasoningEffort <= 0.7
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-secondary text-secondary-foreground'
+                  }`}
+                  onClick={() => handleChange('reasoningEffort', 0.5)}
+                >
+                  Medium
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1 rounded-md ${
+                    localSettings.reasoningEffort > 0.7
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-secondary text-secondary-foreground'
+                  }`}
+                  onClick={() => handleChange('reasoningEffort', 0.9)}
+                >
+                  High
+                </button>
               </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('maxTokens')}
-              >
-                (Change)
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Constrains effort on reasoning for reasoning models. Reducing can result in faster responses
+              </p>
             </div>
-            <Slider 
-              value={[maxTokens]} 
-              min={1} 
-              max={8192} 
-              step={1} 
-              onValueChange={(values) => setMaxTokens(values[0])} 
-            />
-          </div>
-          
-          {/* Safety Settings (Gemini Only) */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <Label className="text-base font-medium">Safety Settings (Gemini Only): Custom</Label>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('safety')}
-              >
-                (Reset to default)
-              </Button>
+
+            {/* System Prompt */}
+            <div className="grid gap-2">
+              <Label htmlFor="systemPrompt">System Prompt</Label>
+              <Textarea
+                id="systemPrompt"
+                value={localSettings.systemPrompt}
+                onChange={(e) => handleChange('systemPrompt', e.target.value)}
+                rows={3}
+                placeholder="You are a helpful AI assistant..."
+              />
+              <p className="text-xs text-muted-foreground">
+                The system prompt that defines the AI's personality and behavior
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Content is blocked based on the probability that it is harmful.
-            </p>
-            
+          </TabsContent>
+
+          <TabsContent value="safety" className="space-y-4">
+            <div className="mb-4 space-y-2">
+              <h3 className="font-medium">Safety Settings (Gemini Only)</h3>
+              <p className="text-xs text-muted-foreground">
+                Content is blocked based on the probability that it is harmful
+              </p>
+            </div>
+
             {/* Harassment */}
             <div className="space-y-2">
-              <Label>Harassment</Label>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Block none</span>
-                <span>few</span>
-                <span>some</span>
-                <span>most</span>
+              <Label htmlFor="harassment">Harassment</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">Block none</span>
+                <Slider
+                  id="harassment"
+                  className="w-[70%]"
+                  value={[
+                    localSettings.safetySettings?.harassment === 'none' ? 0 :
+                    localSettings.safetySettings?.harassment === 'few' ? 33 :
+                    localSettings.safetySettings?.harassment === 'some' ? 66 : 100
+                  ]}
+                  onValueChange={(values: number[]) => {
+                    const value = values[0];
+                    let setting: SafetyLevel = 'none';
+                    if (value < 25) setting = 'none';
+                    else if (value < 50) setting = 'few';
+                    else if (value < 75) setting = 'some';
+                    else setting = 'most';
+                    handleSafetySettingChange('harassment', setting);
+                  }}
+                  step={33}
+                  min={0}
+                  max={100}
+                />
+                <span className="text-xs">most</span>
               </div>
-              <Slider 
-                value={[harassmentLevel]} 
-                min={0} 
-                max={100} 
-                onValueChange={(values) => setHarassmentLevel(values[0])} 
-              />
             </div>
-            
-            {/* Hate speech */}
+
+            {/* Hate Speech */}
             <div className="space-y-2">
-              <Label>Hate speech</Label>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Block none</span>
-                <span>few</span>
-                <span>some</span>
-                <span>most</span>
+              <Label htmlFor="hateSpeech">Hate speech</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">Block none</span>
+                <Slider
+                  id="hateSpeech"
+                  className="w-[70%]"
+                  value={[
+                    localSettings.safetySettings?.hateSpeech === 'none' ? 0 :
+                    localSettings.safetySettings?.hateSpeech === 'few' ? 33 :
+                    localSettings.safetySettings?.hateSpeech === 'some' ? 66 : 100
+                  ]}
+                  onValueChange={(values: number[]) => {
+                    const value = values[0];
+                    let setting: SafetyLevel = 'none';
+                    if (value < 25) setting = 'none';
+                    else if (value < 50) setting = 'few';
+                    else if (value < 75) setting = 'some';
+                    else setting = 'most';
+                    handleSafetySettingChange('hateSpeech', setting);
+                  }}
+                  step={33}
+                  min={0}
+                  max={100}
+                />
+                <span className="text-xs">most</span>
               </div>
-              <Slider 
-                value={[hateLevel]} 
-                min={0} 
-                max={100} 
-                onValueChange={(values) => setHateLevel(values[0])} 
-              />
             </div>
-            
-            {/* Sexually explicit */}
+
+            {/* Sexually Explicit */}
             <div className="space-y-2">
-              <Label>Sexually explicit</Label>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Block none</span>
-                <span>few</span>
-                <span>some</span>
-                <span>most</span>
+              <Label htmlFor="sexuallyExplicit">Sexually explicit</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">Block none</span>
+                <Slider
+                  id="sexuallyExplicit"
+                  className="w-[70%]"
+                  value={[
+                    localSettings.safetySettings?.sexuallyExplicit === 'none' ? 0 :
+                    localSettings.safetySettings?.sexuallyExplicit === 'few' ? 33 :
+                    localSettings.safetySettings?.sexuallyExplicit === 'some' ? 66 : 100
+                  ]}
+                  onValueChange={(values: number[]) => {
+                    const value = values[0];
+                    let setting: SafetyLevel = 'none';
+                    if (value < 25) setting = 'none';
+                    else if (value < 50) setting = 'few';
+                    else if (value < 75) setting = 'some';
+                    else setting = 'most';
+                    handleSafetySettingChange('sexuallyExplicit', setting);
+                  }}
+                  step={33}
+                  min={0}
+                  max={100}
+                />
+                <span className="text-xs">most</span>
               </div>
-              <Slider 
-                value={[sexualLevel]} 
-                min={0} 
-                max={100} 
-                onValueChange={(values) => setSexualLevel(values[0])} 
-              />
             </div>
-            
+
             {/* Dangerous */}
             <div className="space-y-2">
-              <Label>Dangerous</Label>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Block none</span>
-                <span>few</span>
-                <span>some</span>
-                <span>most</span>
+              <Label htmlFor="dangerous">Dangerous</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">Block none</span>
+                <Slider
+                  id="dangerous"
+                  className="w-[70%]"
+                  value={[
+                    localSettings.safetySettings?.dangerous === 'none' ? 0 :
+                    localSettings.safetySettings?.dangerous === 'few' ? 33 :
+                    localSettings.safetySettings?.dangerous === 'some' ? 66 : 100
+                  ]}
+                  onValueChange={(values: number[]) => {
+                    const value = values[0];
+                    let setting: SafetyLevel = 'none';
+                    if (value < 25) setting = 'none';
+                    else if (value < 50) setting = 'few';
+                    else if (value < 75) setting = 'some';
+                    else setting = 'most';
+                    handleSafetySettingChange('dangerous', setting);
+                  }}
+                  step={33}
+                  min={0}
+                  max={100}
+                />
+                <span className="text-xs">most</span>
               </div>
-              <Slider 
-                value={[dangerousLevel]} 
-                min={0} 
-                max={100} 
-                onValueChange={(values) => setDangerousLevel(values[0])} 
-              />
             </div>
-            
-            {/* Civic integrity */}
+
+            {/* Civic Integrity */}
             <div className="space-y-2">
-              <Label>Civic integrity</Label>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Block none</span>
-                <span>few</span>
-                <span>some</span>
-                <span>most</span>
+              <Label htmlFor="civicIntegrity">Civic integrity</Label>
+              <div className="flex items-center justify-between">
+                <span className="text-xs">Block none</span>
+                <Slider
+                  id="civicIntegrity"
+                  className="w-[70%]"
+                  value={[
+                    localSettings.safetySettings?.civicIntegrity === 'none' ? 0 :
+                    localSettings.safetySettings?.civicIntegrity === 'few' ? 33 :
+                    localSettings.safetySettings?.civicIntegrity === 'some' ? 66 : 100
+                  ]}
+                  onValueChange={(values: number[]) => {
+                    const value = values[0];
+                    let setting: SafetyLevel = 'none';
+                    if (value < 25) setting = 'none';
+                    else if (value < 50) setting = 'few';
+                    else if (value < 75) setting = 'some';
+                    else setting = 'most';
+                    handleSafetySettingChange('civicIntegrity', setting);
+                  }}
+                  step={33}
+                  min={0}
+                  max={100}
+                />
+                <span className="text-xs">most</span>
               </div>
-              <Slider 
-                value={[civicLevel]} 
-                min={0} 
-                max={100} 
-                onValueChange={(values) => setCivicLevel(values[0])} 
-              />
             </div>
-          </div>
-          
-          {/* Prompt Caching */}
-          <div className="flex items-center justify-between space-x-2">
-            <div>
-              <Label className="text-base font-medium">Prompt Caching:</Label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Prompt caching helps save token costs for long conversations. Enabling this will incur additional tokens when initiating the cache for the first time, but it can save many more tokens later, especially for long conversations. Not all models support caching, and some models require a minimum number of tokens for caching to be initiated. Please check with your AI model provider for more information.
-              </p>
-            </div>
-            <Switch 
-              checked={promptCaching}
-              onCheckedChange={setPromptCaching}
-            />
-          </div>
-          
-          {/* Reasoning Effort */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <Label className="text-base font-medium">Reasoning Effort (Reasoning models only): {reasoningEffort}</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Constrains effort on reasoning for reasoning models. Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.
-                </p>
-              </div>
-              <Button 
-                variant="link" 
-                className="text-sm text-blue-600 dark:text-blue-500 h-auto p-0"
-                onClick={() => handleResetToDefault('reasoning')}
-              >
-                (Reset to default)
-              </Button>
-            </div>
-            <Select value={reasoningEffort} onValueChange={setReasoningEffort}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select reasoning effort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Auto">Auto</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button
+            className="border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+            onClick={handleReset}
+          >
+            Reset to Defaults
+          </Button>
+          <Button onClick={handleSave}>Save Changes</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

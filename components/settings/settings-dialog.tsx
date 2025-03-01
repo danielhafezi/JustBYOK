@@ -14,6 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { storage } from '@/lib/storage';
+import { UserProfile } from '@/lib/types';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -32,22 +34,77 @@ export function SettingsDialog({
   const [userName, setUserName] = useState<string>('');
   const [userInformation, setUserInformation] = useState<string>('');
   const [customInstructions, setCustomInstructions] = useState<string>('');
+  const [userProfileId, setUserProfileId] = useState<string>('default');
 
-  // Load user profile from localStorage on initial render
+  // Load user profile from storage on initial render or when dialog opens
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedUserName = localStorage.getItem('user-name') || '';
-      const storedUserInformation = localStorage.getItem('user-information') || '';
-      const storedCustomInstructions = localStorage.getItem('custom-instructions') || '';
+    if (open) {
+      const userProfiles = storage.get<UserProfile[]>('userProfiles', []);
+      const currentProfileId = storage.get<string>('currentProfileId', '');
       
-      setUserName(storedUserName);
-      setUserInformation(storedUserInformation);
-      setCustomInstructions(storedCustomInstructions);
+      // If we have profiles and a current profile ID
+      if (userProfiles.length > 0 && currentProfileId) {
+        const currentProfile = userProfiles.find(profile => profile.id === currentProfileId);
+        if (currentProfile) {
+          setUserName(currentProfile.name);
+          setUserInformation(currentProfile.preferences?.information || '');
+          setCustomInstructions(currentProfile.preferences?.customInstruction || '');
+          setUserProfileId(currentProfile.id);
+          return;
+        }
+      }
+      
+      // Fallback to legacy localStorage data if no profiles exist yet
+      if (typeof window !== 'undefined') {
+        const storedUserName = localStorage.getItem('user-name') || '';
+        const storedUserInformation = localStorage.getItem('user-information') || '';
+        const storedCustomInstructions = localStorage.getItem('custom-instructions') || '';
+        
+        setUserName(storedUserName);
+        setUserInformation(storedUserInformation);
+        setCustomInstructions(storedCustomInstructions);
+      }
     }
   }, [open]);
 
-  // Save user profile to localStorage
+  // Save user profile to storage
   const saveUserProfile = () => {
+    // Generate a unique ID if this is a new profile
+    if (userProfileId === 'default') {
+      setUserProfileId(generateId());
+    }
+    
+    // Create or update profile object
+    const updatedProfile: UserProfile = {
+      id: userProfileId,
+      name: userName,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      preferences: {
+        information: userInformation,
+        customInstruction: customInstructions
+      }
+    };
+    
+    // Get existing profiles
+    const userProfiles = storage.get<UserProfile[]>('userProfiles', []);
+    
+    // Check if the profile already exists
+    const existingProfileIndex = userProfiles.findIndex(p => p.id === userProfileId);
+    
+    if (existingProfileIndex >= 0) {
+      // Update existing profile
+      userProfiles[existingProfileIndex] = updatedProfile;
+    } else {
+      // Add new profile
+      userProfiles.push(updatedProfile);
+    }
+    
+    // Save profiles and set current profile ID
+    storage.set('userProfiles', userProfiles);
+    storage.set('currentProfileId', userProfileId);
+    
+    // Maintain backward compatibility with direct localStorage for now
     localStorage.setItem('user-name', userName);
     localStorage.setItem('user-information', userInformation);
     localStorage.setItem('custom-instructions', customInstructions);
@@ -56,13 +113,18 @@ export function SettingsDialog({
     onOpenChange(false);
   };
 
+  // Helper function to generate a unique ID
+  const generateId = (): string => {
+    return Math.random().toString(36).substring(2, 10);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center space-x-2">
             <Button 
-              variant="ghost" 
+              variant="outline"
               size="icon" 
               className="h-8 w-8" 
               onClick={() => onOpenChange(false)}
@@ -125,7 +187,6 @@ export function SettingsDialog({
           {onOpenModelSettings && (
             <div className="pt-2">
               <Button 
-                variant="outline" 
                 className="w-full"
                 onClick={() => {
                   onOpenChange(false);
@@ -135,7 +196,7 @@ export function SettingsDialog({
                 Model Settings
               </Button>
               <p className="text-muted-foreground text-sm mt-2">
-                Configure temperature, max tokens, and other model parameters
+                Configure temperature, top-p, penalties, and other model parameters
               </p>
             </div>
           )}

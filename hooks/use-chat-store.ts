@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Chat, Message, AIModel, Folder } from '@/lib/types';
-import { loadChatsFromLocalStorage, saveChatsToLocalStorage, createNewChat, updateChatTitle } from '@/lib/utils/chat-storage';
+import { 
+  loadChatsFromLocalStorage, 
+  saveChatsToLocalStorage, 
+  createNewChat, 
+  updateChatTitle,
+  loadFoldersFromStorage,
+  saveFoldersToStorage,
+  generateId
+} from '@/lib/utils/chat-storage';
 
 export function useChatStore() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -8,11 +16,11 @@ export function useChatStore() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load chats from localStorage on initial render
+  // Load chats from storage on initial render
   useEffect(() => {
     try {
       const loadedChats = loadChatsFromLocalStorage();
-      const loadedFolders = JSON.parse(localStorage.getItem('chat-folders') || '[]');
+      const loadedFolders = loadFoldersFromStorage();
       setChats(Array.isArray(loadedChats) ? loadedChats : []);
       setFolders(Array.isArray(loadedFolders) ? loadedFolders : []);
       
@@ -35,14 +43,14 @@ export function useChatStore() {
     }
   }, []);
 
-  // Save chats to localStorage whenever they change
+  // Save chats to storage whenever they change
   useEffect(() => {
     if (isLoaded && Array.isArray(chats)) {
       try {
         saveChatsToLocalStorage(chats);
-        localStorage.setItem('chat-folders', JSON.stringify(folders));
+        saveFoldersToStorage(folders);
       } catch (error) {
-        console.error('Error saving chats to localStorage:', error);
+        console.error('Error saving chats to storage:', error);
       }
     }
   }, [chats, folders, isLoaded]);
@@ -50,58 +58,88 @@ export function useChatStore() {
   // Create a new folder
   const createFolder = () => {
     const newFolder: Folder = {
-      id: Math.random().toString(36).substring(2, 10),
-      name: '',
+      id: generateId(),
+      name: 'New Folder',
       createdAt: new Date(),
       updatedAt: new Date(),
       chatIds: [],
       isEditing: true
     };
-    setFolders(prev => [newFolder, ...prev]);
+    
+    setFolders([...folders, newFolder]);
+    
     return newFolder;
   };
 
-  // Update folder
+  // Update a folder
   const updateFolder = (folderId: string, updates: Partial<Folder>) => {
-    setFolders(prev => prev.map(folder => 
-      folder.id === folderId 
-        ? { ...folder, ...updates, updatedAt: new Date() }
-        : folder
-    ));
+    setFolders(
+      folders.map(folder => {
+        if (folder.id === folderId) {
+          return { ...folder, ...updates, updatedAt: new Date() };
+        }
+        return folder;
+      })
+    );
   };
 
-  // Delete folder
+  // Delete a folder
   const deleteFolder = (folderId: string) => {
-    // Remove folder reference from chats
-    setChats(prev => prev.map(chat => 
-      chat.folderId === folderId 
-        ? { ...chat, folderId: undefined }
-        : chat
-    ));
+    // Get all chatIds in this folder
+    const folderToDelete = folders.find(f => f.id === folderId);
+    if (folderToDelete && folderToDelete.chatIds) {
+      // Remove folder reference from chats
+      setChats(
+        chats.map(chat => {
+          if (chat.folderId === folderId) {
+            return { ...chat, folderId: undefined };
+          }
+          return chat;
+        })
+      );
+    }
     
-    // Remove folder
-    setFolders(prev => prev.filter(folder => folder.id !== folderId));
+    // Remove the folder
+    setFolders(folders.filter(f => f.id !== folderId));
   };
 
-  // Move chat to folder
+  // Move a chat to a folder
   const moveChatToFolder = (chatId: string, folderId: string | undefined) => {
-    // Update chat's folder reference
-    setChats(prev => prev.map(chat =>
-      chat.id === chatId
-        ? { ...chat, folderId }
-        : chat
-    ));
-
-    // Update folders' chat lists
-    setFolders(prev => prev.map(folder => {
-      if (folder.id === folderId) {
+    // Update the chat's folder reference
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          return { ...chat, folderId, updatedAt: new Date() };
+        }
+        return chat;
+      })
+    );
+    
+    // Update folders
+    setFolders(
+      folders.map(folder => {
         // Add to new folder
-        return { ...folder, chatIds: [...folder.chatIds, chatId] };
-      } else {
+        if (folder.id === folderId) {
+          const chatIds = folder.chatIds || [];
+          if (!chatIds.includes(chatId)) {
+            return { 
+              ...folder, 
+              chatIds: [...chatIds, chatId],
+              updatedAt: new Date() 
+            };
+          }
+        } 
         // Remove from other folders
-        return { ...folder, chatIds: folder.chatIds.filter(id => id !== chatId) };
-      }
-    }));
+        else if (folder.chatIds && folder.chatIds.includes(chatId)) {
+          return { 
+            ...folder, 
+            chatIds: folder.chatIds.filter(id => id !== chatId),
+            updatedAt: new Date() 
+          };
+        }
+        return folder;
+      })
+    );
   };
 
   // Reorder folders
@@ -109,89 +147,109 @@ export function useChatStore() {
     setFolders(reorderedFolders);
   };
 
-  // Toggle chat favorite status
+  // Toggle favorite status for a chat
   const toggleFavorite = (chatId: string) => {
-    setChats(prev => prev.map(chat => 
-      chat.id === chatId
-        ? { ...chat, favorite: !chat.favorite, updatedAt: new Date() }
-        : chat
-    ));
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          return { 
+            ...chat, 
+            favorite: !chat.favorite,
+            updatedAt: new Date() 
+          };
+        }
+        return chat;
+      })
+    );
   };
 
-  // Pin/unpin a message
+  // Toggle pin status for a message
   const togglePinMessage = (chatId: string, messageId: string) => {
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        // Get current pinned message ids (or initialize empty array)
-        const pinnedMessageIds = Array.isArray(chat.pinnedMessageIds) ? [...chat.pinnedMessageIds] : [];
-        
-        // Toggle pin status
-        const isPinned = pinnedMessageIds.includes(messageId);
-        const updatedPinnedMessageIds = isPinned 
-          ? pinnedMessageIds.filter(id => id !== messageId)
-          : [...pinnedMessageIds, messageId];
-        
-        // Update message pin status in messages array
-        const updatedMessages = chat.messages.map(message => 
-          message.id === messageId 
-            ? { ...message, isPinned: !isPinned } 
-            : message
-        );
-        
-        return {
-          ...chat,
-          pinnedMessageIds: updatedPinnedMessageIds,
-          messages: updatedMessages,
-          updatedAt: new Date()
-        };
-      }
-      return chat;
-    }));
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          // Get the current list of pinned message IDs or create an empty array
+          const pinnedMessageIds = chat.pinnedMessageIds || [];
+          
+          // Check if the message is already pinned
+          const isCurrentlyPinned = pinnedMessageIds.includes(messageId);
+          
+          // Toggle the pin status
+          const updatedPinnedMessageIds = isCurrentlyPinned
+            ? pinnedMessageIds.filter(id => id !== messageId)
+            : [...pinnedMessageIds, messageId];
+          
+          // Update the messages to mark them as pinned/unpinned
+          const updatedMessages = chat.messages.map(message => {
+            if (message.id === messageId) {
+              return {
+                ...message,
+                isPinned: !isCurrentlyPinned
+              };
+            }
+            return message;
+          });
+          
+          return {
+            ...chat,
+            messages: updatedMessages,
+            pinnedMessageIds: updatedPinnedMessageIds,
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      })
+    );
   };
-
-  // Sort chats: favorites first, then by updated date
-  const sortedChats = [...chats].sort((a, b) => {
-    // First sort by favorite status
-    if (a.favorite && !b.favorite) return -1;
-    if (!a.favorite && b.favorite) return 1;
-    
-    // Then sort by updated date (most recent first)
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-  });
-
-  // Get the current chat
-  const currentChat = chats.find(chat => chat?.id === currentChatId) || null;
 
   // Create a new chat
   const createChat = (model: AIModel = 'smart') => {
     const newChat = createNewChat(model);
-    setChats(prevChats => [newChat, ...(Array.isArray(prevChats) ? prevChats : [])]);
+    
+    // Add to beginning of array (most recent first)
+    setChats([newChat, ...chats]);
     setCurrentChatId(newChat.id);
+    
     return newChat;
   };
 
   // Update a chat
   const updateChat = (chatId: string, updates: Partial<Chat>) => {
-    if (!chatId) return;
-    
-    setChats(prevChats =>
-      (Array.isArray(prevChats) ? prevChats : []).map(chat =>
-        chat?.id === chatId
-          ? { ...chat, ...updates, updatedAt: new Date() }
-          : chat
-      )
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          return { ...chat, ...updates, updatedAt: new Date() };
+        }
+        return chat;
+      })
     );
   };
 
   // Delete a chat
   const deleteChat = (chatId: string) => {
-    if (!chatId) return;
+    // If the chat is in a folder, remove it from the folder
+    const chatToDelete = chats.find(c => c.id === chatId);
+    if (chatToDelete && chatToDelete.folderId) {
+      setFolders(
+        folders.map(folder => {
+          if (folder.id === chatToDelete.folderId) {
+            return {
+              ...folder,
+              chatIds: folder.chatIds.filter(id => id !== chatId),
+              updatedAt: new Date()
+            };
+          }
+          return folder;
+        })
+      );
+    }
     
-    setChats(prevChats => (Array.isArray(prevChats) ? prevChats : []).filter(chat => chat?.id !== chatId));
+    // Remove the chat
+    setChats(chats.filter(c => c.id !== chatId));
     
-    // If we're deleting the current chat, switch to another one
+    // If deleted the current chat, select another one
     if (currentChatId === chatId) {
-      const remainingChats = chats.filter(chat => chat?.id !== chatId);
+      const remainingChats = chats.filter(c => c.id !== chatId);
       if (remainingChats.length > 0) {
         setCurrentChatId(remainingChats[0].id);
       } else {
@@ -207,22 +265,28 @@ export function useChatStore() {
     if (!chatId || !message?.content) return null;
     
     const newMessage: Message = {
-      id: Math.random().toString(36).substring(2, 10),
+      id: generateId(),
       ...message,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
     
-    setChats(prevChats =>
-      (Array.isArray(prevChats) ? prevChats : []).map(chat => {
-        if (chat?.id === chatId) {
-          const updatedMessages = Array.isArray(chat.messages) ? [...chat.messages, newMessage] : [newMessage];
-          const updatedChat = updateChatTitle(chat, updatedMessages);
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          const updatedMessages = [...(chat.messages || []), newMessage];
           
-          return {
-            ...updatedChat,
-            messages: updatedMessages,
-            updatedAt: new Date()
-          };
+          // If the title is still the default and this is a user message,
+          // use the message content to create a title
+          const updatedChat = updateChatTitle(
+            {
+              ...chat,
+              messages: updatedMessages,
+              updatedAt: new Date()
+            },
+            updatedMessages
+          );
+          
+          return updatedChat;
         }
         return chat;
       })
@@ -233,16 +297,18 @@ export function useChatStore() {
 
   // Update a message in a chat
   const updateMessage = (chatId: string, messageId: string, content: string) => {
-    if (!chatId || !messageId) return;
-    
-    setChats(prevChats => 
-      (Array.isArray(prevChats) ? prevChats : []).map(chat => {
-        if (chat?.id === chatId) {
-          const updatedMessages = chat.messages.map(message => 
-            message.id === messageId 
-              ? { ...message, content } 
-              : message
-          );
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          const updatedMessages = chat.messages.map(message => {
+            if (message.id === messageId) {
+              return {
+                ...message,
+                content
+              };
+            }
+            return message;
+          });
           
           return {
             ...chat,
@@ -257,75 +323,78 @@ export function useChatStore() {
 
   // Clear all messages from a chat
   const clearMessages = (chatId: string) => {
-    if (!chatId) return;
-    
-    setChats(prevChats =>
-      (Array.isArray(prevChats) ? prevChats : []).map(chat =>
-        chat?.id === chatId
-          ? { ...chat, messages: [], pinnedMessageIds: [], updatedAt: new Date() }
-          : chat
-      )
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [],
+            title: 'New Chat',
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      })
     );
   };
 
   // Change the model for a chat
   const changeModel = (chatId: string, newModel: AIModel) => {
-    if (!chatId) return;
-    
-    // Validate model
-    const validModel = ['smart', 'openai', 'anthropic', 'gemini'].includes(newModel) ? newModel : 'smart';
-    
-    setChats(prevChats =>
-      (Array.isArray(prevChats) ? prevChats : []).map(chat =>
-        chat?.id === chatId
-          ? { ...chat, model: validModel as AIModel, updatedAt: new Date() }
-          : chat
-      )
+    setChats(
+      chats.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            model: newModel,
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      })
     );
   };
 
-  // Search chats
+  // Return the current chat
+  const currentChat = chats.find(chat => chat.id === currentChatId) || null;
+
+  // Search chats by title and content
   const searchChats = (query: string) => {
-    if (!query?.trim()) return sortedChats;
+    if (!query) return chats;
     
-    if (!Array.isArray(chats)) return [];
+    const lowercaseQuery = query.toLowerCase();
     
-    const lowercasedQuery = query.toLowerCase();
-    
-    return sortedChats.filter(chat => {
-      if (!chat) return false;
+    return chats.filter(chat => {
+      const titleMatch = chat.title.toLowerCase().includes(lowercaseQuery);
       
-      // Search in title
-      if (chat.title?.toLowerCase().includes(lowercasedQuery)) return true;
-      
-      // Search in messages
-      return Array.isArray(chat.messages) && chat.messages.some(message => 
-        message?.content?.toLowerCase().includes(lowercasedQuery)
+      const contentMatch = chat.messages.some(message => 
+        message.content.toLowerCase().includes(lowercaseQuery)
       );
+      
+      return titleMatch || contentMatch;
     });
   };
-
+  
   return {
-    chats: sortedChats,
+    chats,
+    folders,
     currentChat,
     currentChatId,
-    folders,
     setCurrentChatId,
     createChat,
     updateChat,
     deleteChat,
+    addMessage,
+    updateMessage,
+    clearMessages,
+    changeModel,
     createFolder,
     updateFolder,
     deleteFolder,
     moveChatToFolder,
     reorderFolders,
-    addMessage,
-    updateMessage,
-    clearMessages,
-    changeModel,
-    searchChats,
     toggleFavorite,
     togglePinMessage,
-    isLoaded
+    searchChats,
+    isLoaded,
   };
 }
