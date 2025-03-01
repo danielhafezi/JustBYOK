@@ -4,76 +4,26 @@ import { storage } from '../storage';
 const STORAGE_KEY = 'chats';
 const FOLDERS_KEY = 'chatFolders';
 
+// Functions kept for backwards compatibility, but they should no longer be used
+// Chat data should only be stored in IndexedDB now
 export function saveChatsToLocalStorage(chats: Chat[]): void {
-  storage.set(STORAGE_KEY, chats);
+  // Do nothing - we no longer use localStorage for chats
+  console.warn('saveChatsToLocalStorage is deprecated - use IndexedDB instead');
 }
 
 export function loadChatsFromLocalStorage(): Chat[] {
-  // Try to load chats from our new storage utility first
-  const chatsFromStorage = storage.get<Chat[]>(STORAGE_KEY);
-  if (chatsFromStorage) {
-    return chatsFromStorage;
-  }
-  
-  // Fallback to the old localStorage method if not found in our new storage
-  if (typeof window === 'undefined') return [];
-  
-  try {
-    const chats = localStorage.getItem('ai-chat-history');
-    if (!chats) return [];
-    
-    // Parse dates back to Date objects
-    const parsedChats = JSON.parse(chats, (key, value) => {
-      if (key === 'createdAt' || key === 'updatedAt') {
-        return new Date(value);
-      }
-      return value;
-    });
-    
-    // Validate the parsed data is an array
-    if (!Array.isArray(parsedChats)) {
-      console.error('Parsed chats is not an array, returning empty array');
-      return [];
-    }
-    
-    // Migrate the old data to our new storage format
-    storage.set(STORAGE_KEY, parsedChats);
-    
-    return parsedChats;
-  } catch (error) {
-    console.error('Failed to parse chats from localStorage:', error);
-    return [];
-  }
+  console.warn('loadChatsFromLocalStorage is deprecated - use IndexedDB instead');
+  return [];
 }
 
 export function saveFoldersToStorage(folders: any[]): void {
-  storage.set(FOLDERS_KEY, folders);
+  // Do nothing - we no longer use localStorage for folders
+  console.warn('saveFoldersToStorage is deprecated - use IndexedDB instead');
 }
 
 export function loadFoldersFromStorage(): any[] {
-  // Try to load folders from our new storage utility first
-  const foldersFromStorage = storage.get<any[]>(FOLDERS_KEY);
-  if (foldersFromStorage) {
-    return foldersFromStorage;
-  }
-  
-  // Fallback to the old localStorage method if not found in our new storage
-  if (typeof window === 'undefined') return [];
-  
-  try {
-    const folders = localStorage.getItem('chat-folders');
-    if (!folders) return [];
-    
-    const parsedFolders = JSON.parse(folders);
-    
-    // Migrate the old data to our new storage format
-    storage.set(FOLDERS_KEY, parsedFolders);
-    
-    return parsedFolders;
-  } catch (error) {
-    console.error('Failed to parse folders from localStorage:', error);
-    return [];
-  }
+  console.warn('loadFoldersFromStorage is deprecated - use IndexedDB instead');
+  return [];
 }
 
 export function createNewChat(model: string = 'smart'): Chat {
@@ -85,6 +35,7 @@ export function createNewChat(model: string = 'smart'): Chat {
     title: 'New Chat',
     messages: [],
     model: validModel as AIModel,
+    favorite: false,
     createdAt: new Date(),
     updatedAt: new Date()
   };

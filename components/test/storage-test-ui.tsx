@@ -237,11 +237,11 @@ export function StorageTestUI() {
       </CardContent>
       <CardFooter className="flex justify-between">
         <p className="text-sm text-muted-foreground">
-          All data is stored in your browser's localStorage
+          API keys, settings and profile data are stored in localStorage. Chat data is stored in IndexedDB.
         </p>
       </CardFooter>
     </Card>
   );
 }
 
-export default StorageTestUI; 
+export default StorageTestUI;

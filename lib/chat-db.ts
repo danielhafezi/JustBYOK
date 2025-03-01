@@ -101,7 +101,27 @@ export const chatDB = {
     if (!db) return chat.id;
     
     chat.updatedAt = new Date();
-    await db.put('chats', chat);
+    
+    // Create a copy of the chat object without messages field
+    // to prevent duplicate storage (messages are stored separately)
+    const chatToSave = { ...chat };
+    
+    // If messages array exists, store it temporarily and remove it from the object
+    const messages = chatToSave.messages || [];
+    chatToSave.messages = []; // Set to empty array to maintain schema consistency
+    
+    // Save the chat without messages
+    await db.put('chats', chatToSave);
+    
+    // If this is a new chat with messages, save them separately
+    for (const message of messages) {
+      // Only save messages that don't already have a chatId property
+      // This prevents re-saving messages that are already in the store
+      if (message.id && !('chatId' in message)) {
+        await this.saveMessage({ ...message, chatId: chat.id });
+      }
+    }
+    
     return chat.id;
   },
   
@@ -171,14 +191,23 @@ export const chatDB = {
       message.createdAt = new Date();
     }
     
+    // Save the message to the messages store
     await db.put('messages', message);
     
-    // Update the associated chat's updatedAt timestamp
-    const chat = await db.get('chats', message.chatId);
+    // Update the associated chat's updatedAt timestamp WITHOUT modifying the messages array
+    // We'll use a transaction to ensure atomicity and prevent race conditions
+    const tx = db.transaction('chats', 'readwrite');
+    const chatStore = tx.objectStore('chats');
+    const chat = await chatStore.get(message.chatId);
+    
     if (chat) {
+      // Only update the timestamp, don't touch the messages array
       chat.updatedAt = new Date();
-      await db.put('chats', chat);
+      await chatStore.put(chat);
     }
+    
+    // Commit the transaction
+    await tx.done;
     
     return message.id;
   },

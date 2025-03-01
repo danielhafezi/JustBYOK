@@ -25,43 +25,19 @@ export function useChatStore() {
       try {
         // Check if we're running in a browser environment
         if (!chatDB.isAvailable) {
-          // Fall back to localStorage if not in browser or IndexedDB not available
-          console.log('IndexedDB not available, falling back to localStorage');
-          const loadedChats = loadChatsFromLocalStorage();
-          const loadedFolders = loadFoldersFromStorage();
-          
-          setChats(Array.isArray(loadedChats) ? loadedChats : []);
-          setFolders(Array.isArray(loadedFolders) ? loadedFolders : []);
+          // No fallback anymore - just create an empty chat
+          console.log('IndexedDB not available, creating empty chat');
+          const newChat = createNewChat();
+          setChats([newChat]);
+          setCurrentChatId(newChat.id);
+          setFolders([]);
           setUsingFallback(true);
-          
-          // Set current chat to the most recent one, or create a new one if none exist
-          if (loadedChats.length > 0) {
-            setCurrentChatId(loadedChats[0].id);
-          } else {
-            const newChat = createNewChat();
-            setChats([newChat]);
-            setCurrentChatId(newChat.id);
-          }
-          
           setIsLoaded(true);
           return;
         }
         
-        // Check if IndexedDB is empty (first time use)
-        const isEmpty = await chatDB.isEmpty();
-        
-        if (isEmpty) {
-          // If empty, import data from localStorage
-          console.log('Importing data from localStorage to IndexedDB...');
-          const loadedChats = loadChatsFromLocalStorage();
-          const loadedFolders = loadFoldersFromStorage();
-          
-          // Import to IndexedDB
-          await chatDB.importFromLocalStorage(
-            Array.isArray(loadedChats) ? loadedChats : [], 
-            Array.isArray(loadedFolders) ? loadedFolders : []
-          );
-        }
+        // We don't try to load from localStorage anymore
+        // Just load directly from IndexedDB
         
         // Load data from IndexedDB
         const [loadedChats, loadedFolders] = await Promise.all([
@@ -69,13 +45,27 @@ export function useChatStore() {
           chatDB.getAllFolders()
         ]);
         
+        console.log(`Loaded ${loadedChats.length} chats from IndexedDB`);
+        
+        // Load messages for each chat to ensure they're fully populated
+        const populatedChats = await Promise.all(
+          loadedChats.map(async (chat) => {
+            // Only load messages if the chat object doesn't already have them
+            if (!chat.messages || chat.messages.length === 0) {
+              const messages = await chatDB.getChatMessages(chat.id);
+              return { ...chat, messages };
+            }
+            return chat;
+          })
+        );
+        
         // Set state with loaded data
-        setChats(loadedChats);
+        setChats(populatedChats);
         setFolders(loadedFolders);
         
         // Set current chat to the most recent one, or create a new one if none exist
-        if (loadedChats.length > 0) {
-          setCurrentChatId(loadedChats[0].id);
+        if (populatedChats.length > 0) {
+          setCurrentChatId(populatedChats[0].id);
         } else {
           const newChat = createNewChat();
           await chatDB.saveChat(newChat);
@@ -85,33 +75,13 @@ export function useChatStore() {
       } catch (error) {
         console.error('Error initializing chat store:', error);
         
-        // Fall back to localStorage on error
-        try {
-          console.log('Falling back to localStorage due to error');
-          const loadedChats = loadChatsFromLocalStorage();
-          const loadedFolders = loadFoldersFromStorage();
-          
-          setChats(Array.isArray(loadedChats) ? loadedChats : []);
-          setFolders(Array.isArray(loadedFolders) ? loadedFolders : []);
-          setUsingFallback(true);
-          
-          // Set current chat
-          if (loadedChats.length > 0) {
-            setCurrentChatId(loadedChats[0].id);
-          } else {
-            const newChat = createNewChat();
-            setChats([newChat]);
-            setCurrentChatId(newChat.id);
-          }
-        } catch (fallbackError) {
-          console.error('Error falling back to localStorage:', fallbackError);
-          
-          // Last resort: create a new chat
-          const newChat = createNewChat();
-          setChats([newChat]);
-          setCurrentChatId(newChat.id);
-          setUsingFallback(true);
-        }
+        // No fallback to localStorage anymore
+        // Just create a new chat on error
+        const newChat = createNewChat();
+        setChats([newChat]);
+        setCurrentChatId(newChat.id);
+        setFolders([]);
+        setUsingFallback(true);
       } finally {
         setIsLoaded(true);
       }
@@ -162,18 +132,24 @@ export function useChatStore() {
    * Update a folder
    */
   const updateFolder = useCallback(async (folderId: string, updates: Partial<Folder>) => {
+    // Find the folder to update
+    const folderToUpdate = folders.find(f => f.id === folderId);
+    if (!folderToUpdate) return;
+    
+    // Create the updated folder object
+    const updatedFolder = { 
+      ...folderToUpdate, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    
     // Update local state
     setFolders(prev => prev.map(folder => 
-      folder.id === folderId ? { ...folder, ...updates, updatedAt: new Date() } : folder
+      folder.id === folderId ? updatedFolder : folder
     ));
     
-    // Get the updated folder from state
-    const updatedFolder = folders.find(f => f.id === folderId);
-    if (updatedFolder) {
-      // Persist to IndexedDB
-      const folderToSave = { ...updatedFolder, ...updates, updatedAt: new Date() };
-      await chatDB.saveFolder(folderToSave);
-    }
+    // Persist to IndexedDB
+    await chatDB.saveFolder(updatedFolder);
   }, [folders]);
 
   /**
@@ -250,79 +226,85 @@ export function useChatStore() {
    * Toggle favorite status of a chat
    */
   const toggleFavorite = useCallback(async (chatId: string) => {
-    // Update local state
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        const updatedChat = { 
-          ...chat, 
-          favorite: !chat.favorite,
-          updatedAt: new Date()
-        };
-        return updatedChat;
-      }
-      return chat;
-    }));
+    // Find the chat to update
+    const chatToUpdate = chats.find(c => c.id === chatId);
+    if (!chatToUpdate) return;
     
-    // Get the updated chat from state
-    const updatedChat = chats.find(c => c.id === chatId);
-    if (updatedChat) {
-      // Persist to IndexedDB
-      await chatDB.saveChat(updatedChat);
-    }
+    // Determine the new favorite status (ensure it's a boolean, not undefined)
+    const newFavoriteStatus = chatToUpdate.favorite === true ? false : true;
+    
+    // Create the updated chat object with explicit boolean value
+    const updatedChat = { 
+      ...chatToUpdate, 
+      favorite: newFavoriteStatus,
+      updatedAt: new Date()
+    };
+    
+    // Update local state
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? updatedChat : chat
+    ));
+    
+    // Persist to IndexedDB with explicit favorite property
+    await chatDB.saveChat(updatedChat);
+    
+    console.log(`Chat ${chatId} favorite status toggled to: ${newFavoriteStatus}`);
   }, [chats]);
 
   /**
    * Toggle pin status of a message
    */
   const togglePinMessage = useCallback(async (chatId: string, messageId: string) => {
-    // Update local state
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        // Find the message
-        const messages = chat.messages.map(msg => 
-          msg.id === messageId 
-            ? { ...msg, isPinned: !msg.isPinned }
-            : msg
-        );
-        
-        // Update pinnedMessageIds
-        let pinnedMessageIds = chat.pinnedMessageIds || [];
-        if (messages.find(m => m.id === messageId)?.isPinned) {
-          // Add to pinned list if not already there
-          if (!pinnedMessageIds.includes(messageId)) {
-            pinnedMessageIds = [...pinnedMessageIds, messageId];
-          }
-        } else {
-          // Remove from pinned list
-          pinnedMessageIds = pinnedMessageIds.filter(id => id !== messageId);
-        }
-        
-        return {
-          ...chat,
-          messages,
-          pinnedMessageIds,
-          updatedAt: new Date()
-        };
-      }
-      return chat;
-    }));
+    // Find the chat and message
+    const chatToUpdate = chats.find(c => c.id === chatId);
+    if (!chatToUpdate) return;
     
-    // Get the updated chat and message from state
-    const chat = chats.find(c => c.id === chatId);
-    if (chat) {
-      // Get the message
-      const message = chat.messages.find(m => m.id === messageId);
-      if (message) {
-        // Update the message in IndexedDB
-        await chatDB.saveMessage({
-          ...message,
-          chatId
-        });
-        
-        // Update the chat to save pinnedMessageIds
-        await chatDB.saveChat(chat);
+    const messageToUpdate = chatToUpdate.messages.find(m => m.id === messageId);
+    if (!messageToUpdate) return;
+    
+    // Create updated message with toggled pin status
+    const updatedMessage = {
+      ...messageToUpdate,
+      isPinned: !messageToUpdate.isPinned
+    };
+    
+    // Update pinnedMessageIds
+    let pinnedMessageIds = [...(chatToUpdate.pinnedMessageIds || [])];
+    if (updatedMessage.isPinned) {
+      // Add to pinned list if not already there
+      if (!pinnedMessageIds.includes(messageId)) {
+        pinnedMessageIds.push(messageId);
       }
+    } else {
+      // Remove from pinned list
+      pinnedMessageIds = pinnedMessageIds.filter(id => id !== messageId);
     }
+    
+    // Create updated chat with updated message and pinnedMessageIds
+    const updatedChat = {
+      ...chatToUpdate,
+      messages: chatToUpdate.messages.map(msg => 
+        msg.id === messageId ? updatedMessage : msg
+      ),
+      pinnedMessageIds,
+      updatedAt: new Date()
+    };
+    
+    // Update local state
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? updatedChat : chat
+    ));
+    
+    // Persist message to IndexedDB
+    await chatDB.saveMessage({
+      ...updatedMessage,
+      chatId
+    });
+    
+    // Persist chat to IndexedDB to save pinnedMessageIds
+    await chatDB.saveChat(updatedChat);
+    
+    console.log(`Message ${messageId} pin status toggled to: ${updatedMessage.isPinned}`);
   }, [chats]);
 
   /**
@@ -345,20 +327,24 @@ export function useChatStore() {
    * Update a chat
    */
   const updateChat = useCallback(async (chatId: string, updates: Partial<Chat>) => {
+    // Find the chat to update
+    const chatToUpdate = chats.find(c => c.id === chatId);
+    if (!chatToUpdate) return;
+    
+    // Create the updated chat object
+    const updatedChat = { 
+      ...chatToUpdate, 
+      ...updates, 
+      updatedAt: new Date() 
+    };
+    
     // Update local state
     setChats(prev => prev.map(chat => 
-      chat.id === chatId 
-        ? { ...chat, ...updates, updatedAt: new Date() } 
-        : chat
+      chat.id === chatId ? updatedChat : chat
     ));
     
-    // Get the updated chat from state
-    const updatedChat = chats.find(c => c.id === chatId);
-    if (updatedChat) {
-      // Persist to IndexedDB
-      const chatToSave = { ...updatedChat, ...updates, updatedAt: new Date() };
-      await chatDB.saveChat(chatToSave);
-    }
+    // Persist to IndexedDB
+    await chatDB.saveChat(updatedChat);
   }, [chats]);
 
   /**
@@ -420,6 +406,11 @@ export function useChatStore() {
   const addMessage = useCallback(async (chatId: string, message: Omit<Message, 'id' | 'createdAt'>) => {
     if (!chatId || !message?.content) return null;
     
+    // Find the chat to update
+    const chatToUpdate = chats.find(c => c.id === chatId);
+    if (!chatToUpdate) return null;
+    
+    // Create the new message
     const newMessage: Message = {
       id: generateId(),
       content: message.content,
@@ -428,39 +419,51 @@ export function useChatStore() {
       isPinned: false
     };
     
-    // Update local state
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        const updatedMessages = [...chat.messages, newMessage];
-        return {
-          ...chat,
-          messages: updatedMessages,
-          updatedAt: new Date(),
-          // Update chat title if it's still the default
-          title: chat.title === 'New Chat' && message.role === 'user'
-            ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
-            : chat.title
-        };
-      }
-      return chat;
-    }));
+    // Determine if we need to update the chat title
+    const shouldUpdateTitle = chatToUpdate.title === 'New Chat' && message.role === 'user';
+    const newTitle = shouldUpdateTitle
+      ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
+      : chatToUpdate.title;
     
-    // Persist message to IndexedDB
-    await chatDB.saveMessage({
-      ...newMessage,
-      chatId
-    });
+    // Create a copy of the messages array to avoid reference issues
+    const updatedMessages = [...chatToUpdate.messages, newMessage];
     
-    // Update chat in IndexedDB
-    const updatedChat = chats.find(c => c.id === chatId);
-    if (updatedChat) {
-      // Update the title if needed
-      if (updatedChat.title === 'New Chat' && message.role === 'user') {
-        const newTitle = message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '');
-        updatedChat.title = newTitle;
-      }
+    // Create the updated chat
+    const updatedChat = {
+      ...chatToUpdate,
+      messages: updatedMessages,
+      title: newTitle,
+      updatedAt: new Date()
+    };
+    
+    // Update local state with the new message FIRST before any async operations
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? updatedChat : chat
+    ));
+    
+    try {
+      // Now handle async operations
       
-      await chatDB.saveChat(updatedChat);
+      // Persist message to IndexedDB
+      await chatDB.saveMessage({
+        ...newMessage,
+        chatId
+      });
+      
+      // Persist chat to IndexedDB (don't overwrite the messages array)
+      await chatDB.saveChat({
+        ...updatedChat,
+        // Don't include messages as they're stored separately
+        messages: []
+      });
+      
+      // Log success for debugging
+      console.log(`Message saved successfully: ${newMessage.id}`);
+      
+    } catch (error) {
+      console.error('Error saving message:', error);
+      // If there's an error, we don't need to revert the UI state
+      // as the message is already displayed and the user expects it to stay
     }
     
     return newMessage;
@@ -586,6 +589,7 @@ export function useChatStore() {
       title: 'New Chat',
       messages: [],
       model,
+      favorite: false,
       createdAt: new Date(),
       updatedAt: new Date()
     };

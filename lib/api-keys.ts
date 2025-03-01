@@ -8,11 +8,6 @@ import { ApiKeys } from './types';
 
 const API_KEYS_STORAGE_KEY = 'api-keys';
 
-// Legacy storage keys
-const OPENAI_KEY = 'openai-api-key';
-const ANTHROPIC_KEY = 'anthropic-api-key';
-const GEMINI_KEY = 'gemini-api-key';
-
 /**
  * Utility for API key management
  */
@@ -22,26 +17,19 @@ export const apiKeyStorage = {
    */
   getApiKeys: async (): Promise<ApiKeys> => {
     try {
-      // Try to get from new storage
+      // Get from storage
       const keys = await storage.get<ApiKeys>(API_KEYS_STORAGE_KEY);
       
       if (keys) {
-        return keys;
+        // Filter out any non-allowed keys (gpt-4o, etc.)
+        const { openai, anthropic, gemini, ...rest } = keys;
+        return { openai: openai || '', anthropic: anthropic || '', gemini: gemini || '' };
       }
       
-      // Fallback to legacy storage
-      const openai = localStorage.getItem(OPENAI_KEY) || '';
-      const anthropic = localStorage.getItem(ANTHROPIC_KEY) || '';
-      const gemini = localStorage.getItem(GEMINI_KEY) || '';
-      
-      // Migrate to new storage format
-      const migratedKeys: ApiKeys = { openai, anthropic, gemini };
-      await storage.set(API_KEYS_STORAGE_KEY, migratedKeys);
-      
-      return migratedKeys;
+      return { openai: '', anthropic: '', gemini: '' };
     } catch (error) {
       console.error('Error getting API keys:', error);
-      return {};
+      return { openai: '', anthropic: '', gemini: '' };
     }
   },
   
@@ -50,6 +38,12 @@ export const apiKeyStorage = {
    */
   setApiKey: async (provider: keyof ApiKeys, key: string): Promise<void> => {
     try {
+      // Only allow openai, anthropic, and gemini
+      if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'gemini') {
+        console.error(`API key provider ${provider} is not supported`);
+        return;
+      }
+      
       // Get current keys
       const keys = await apiKeyStorage.getApiKeys();
       
@@ -58,15 +52,6 @@ export const apiKeyStorage = {
       
       // Save to storage
       await storage.set(API_KEYS_STORAGE_KEY, updatedKeys);
-      
-      // Also update legacy storage for backward compatibility
-      if (provider === 'openai') {
-        localStorage.setItem(OPENAI_KEY, key);
-      } else if (provider === 'anthropic') {
-        localStorage.setItem(ANTHROPIC_KEY, key);
-      } else if (provider === 'gemini') {
-        localStorage.setItem(GEMINI_KEY, key);
-      }
     } catch (error) {
       console.error(`Error setting ${provider} API key:`, error);
     }
@@ -77,13 +62,8 @@ export const apiKeyStorage = {
    */
   clearAllApiKeys: async (): Promise<void> => {
     try {
-      // Clear from new storage
+      // Clear from storage
       await storage.remove(API_KEYS_STORAGE_KEY);
-      
-      // Clear from legacy storage
-      localStorage.removeItem(OPENAI_KEY);
-      localStorage.removeItem(ANTHROPIC_KEY);
-      localStorage.removeItem(GEMINI_KEY);
     } catch (error) {
       console.error('Error clearing API keys:', error);
     }
@@ -93,58 +73,53 @@ export const apiKeyStorage = {
    * Get OpenAI API key
    */
   getOpenAIKey: (): string => {
-    return localStorage.getItem(OPENAI_KEY) || '';
+    const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
+    return keys.openai || '';
   },
 
   /**
    * Set OpenAI API key
    */
-  setOpenAIKey: (key: string): void => {
-    localStorage.setItem(OPENAI_KEY, key);
+  setOpenAIKey: async (key: string): Promise<void> => {
+    await apiKeyStorage.setApiKey('openai', key);
   },
 
   /**
    * Get Anthropic API key
    */
   getAnthropicKey: (): string => {
-    return localStorage.getItem(ANTHROPIC_KEY) || '';
+    const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
+    return keys.anthropic || '';
   },
 
   /**
    * Set Anthropic API key
    */
-  setAnthropicKey: (key: string): void => {
-    localStorage.setItem(ANTHROPIC_KEY, key);
+  setAnthropicKey: async (key: string): Promise<void> => {
+    await apiKeyStorage.setApiKey('anthropic', key);
   },
 
   /**
    * Get Gemini API key
    */
   getGeminiKey: (): string => {
-    return localStorage.getItem(GEMINI_KEY) || '';
+    const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
+    return keys.gemini || '';
   },
 
   /**
    * Set Gemini API key
    */
-  setGeminiKey: (key: string): void => {
-    localStorage.setItem(GEMINI_KEY, key);
+  setGeminiKey: async (key: string): Promise<void> => {
+    await apiKeyStorage.setApiKey('gemini', key);
   },
 
   /**
    * Check if a key exists for a provider
    */
   hasKey: (provider: 'openai' | 'anthropic' | 'gemini'): boolean => {
-    switch (provider) {
-      case 'openai':
-        return !!apiKeyStorage.getOpenAIKey();
-      case 'anthropic':
-        return !!apiKeyStorage.getAnthropicKey();
-      case 'gemini':
-        return !!apiKeyStorage.getGeminiKey();
-      default:
-        return false;
-    }
+    const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
+    return !!keys[provider];
   },
 
   /**
@@ -164,4 +139,4 @@ export const apiKeyStorage = {
   }
 };
 
-export default apiKeyStorage; 
+export default apiKeyStorage;
