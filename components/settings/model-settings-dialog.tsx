@@ -232,7 +232,7 @@ export function ModelSettingsDialog({
             {/* Prompt Caching */}
             <div className="flex items-center justify-between">
               <div>
-                <Label htmlFor="promptCaching" className="text-base">Prompt Caching</Label>
+                <Label htmlFor="promptCaching" className="text-base">Prompt Caching (For Supported Models)</Label>
                 <p className="text-xs text-muted-foreground">
                   Prompt caching helps save token costs for long conversations. Enabling this will incur additional tokens when initiating the cache
                 </p>
@@ -539,7 +539,7 @@ export function ModelSettingsDialog({
 
         <DialogFooter>
           <Button
-            className="border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+            className="border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={handleReset}
           >
             Reset to Defaults

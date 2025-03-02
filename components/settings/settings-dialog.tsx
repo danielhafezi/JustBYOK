@@ -184,22 +184,7 @@ export function SettingsDialog({
           </div>
           
           {/* Model Settings Link */}
-          {onOpenModelSettings && (
-            <div className="pt-2">
-              <Button 
-                className="w-full"
-                onClick={() => {
-                  onOpenChange(false);
-                  onOpenModelSettings();
-                }}
-              >
-                Model Settings
-              </Button>
-              <p className="text-muted-foreground text-sm mt-2">
-                Configure temperature, top-p, penalties, and other model parameters
-              </p>
-            </div>
-          )}
+          {/* This section is not needed and has been removed */}
         </div>
         
         <DialogFooter>

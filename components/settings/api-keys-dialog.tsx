@@ -24,7 +24,7 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
     openai: '',
     anthropic: '',
     gemini: '',
-    azure: '',
+    firecrawl: '',
   });
 
   // Load API keys on mount
@@ -104,16 +104,16 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
             </p>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="azure-key">Azure OpenAI API Key (Optional)</Label>
+            <Label htmlFor="firecrawl-key">Firecrawl API Key</Label>
             <Input
-              id="azure-key"
+              id="firecrawl-key"
               type="password"
-              value={apiKeys.azure || ''}
-              onChange={(e) => handleChangeKey('azure', e.target.value)}
-              placeholder="Azure OpenAI key..."
+              value={apiKeys.firecrawl || ''}
+              onChange={(e) => handleChangeKey('firecrawl', e.target.value)}
+              placeholder="Firecrawl API key..."
             />
             <p className="text-xs text-muted-foreground">
-              For Azure OpenAI deployments
+              Used for Firecrawl search functionality
             </p>
           </div>
         </div>

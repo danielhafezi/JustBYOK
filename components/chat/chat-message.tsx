@@ -120,7 +120,6 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
       <div 
         className={cn(
           "flex justify-end mb-4 px-4 relative group",
-          message.isPinned && "border-l-2 border-yellow-500/70 rounded-l"
         )}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
@@ -132,43 +131,57 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
           </div>
         )}
         
-        {/* Message bubble */}
-        <div className="bg-primary text-primary-foreground rounded-tl-2xl rounded-bl-2xl rounded-tr-md rounded-br-2xl py-2 px-4 max-w-[80%] inline-block relative">
-          <div className="prose dark:prose-invert prose-sm">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
-          </div>
+        {/* Message bubble with pin indicator */}
+        <div className="relative flex">
+          {/* Pin indicator */}
+          {message.isPinned && (
+            <div className="flex items-stretch mr-[-1px]">
+              <div className="w-1.5 bg-yellow-500/70 rounded-l-2xl"></div>
+            </div>
+          )}
           
-          {/* Action buttons - now positioned at the bottom of the message bubble */}
-          <div 
-            className={cn(
-              "absolute -bottom-7 right-0 flex items-center gap-1",
-              isHovering ? "opacity-100" : "opacity-0"
-            )}
-          >
-            <button 
-              onClick={handleTogglePin}
+          <div className={cn(
+            "bg-primary text-primary-foreground py-2 px-4 inline-block relative",
+            message.isPinned 
+              ? "rounded-tr-md rounded-br-2xl rounded-tl-sm rounded-bl-sm" 
+              : "rounded-tl-2xl rounded-bl-2xl rounded-tr-md rounded-br-2xl"
+          )}>
+            <div className="prose dark:prose-invert prose-sm">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            </div>
+            
+            {/* Action buttons */}
+            <div 
               className={cn(
-                "text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5",
-                message.isPinned && "text-yellow-500 hover:text-yellow-600"
+                "absolute -bottom-7 right-0 flex items-center gap-1",
+                isHovering ? "opacity-100" : "opacity-0"
               )}
-              aria-label={message.isPinned ? "Unpin message" : "Pin message"}
             >
-              <Pin className={cn("h-3.5 w-3.5", message.isPinned && "fill-yellow-500")} />
-            </button>
-            <button 
-              onClick={handleEdit}
-              className="text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5"
-              aria-label="Edit message"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button 
-              onClick={copyToClipboard}
-              className="text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5"
-              aria-label="Copy message"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
+              <button 
+                onClick={handleTogglePin}
+                className={cn(
+                  "text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5",
+                  message.isPinned && "text-yellow-500 hover:text-yellow-600"
+                )}
+                aria-label={message.isPinned ? "Unpin message" : "Pin message"}
+              >
+                <Pin className={cn("h-3.5 w-3.5", message.isPinned && "fill-yellow-500")} />
+              </button>
+              <button 
+                onClick={handleEdit}
+                className="text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5"
+                aria-label="Edit message"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button 
+                onClick={copyToClipboard}
+                className="text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm rounded-full p-1.5"
+                aria-label="Copy message"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -180,27 +193,36 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
     <div 
       className={cn(
         "flex mb-4 px-4 relative group",
-        message.isPinned && "border-l-2 border-yellow-500/70 rounded-l"
       )}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      {/* Time display on hover */}
-      {isHovering && messageTime && (
-        <div className="absolute -top-6 left-4 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md">
-          {messageTime}
-        </div>
-      )}
-      
       <div className="flex-1 max-w-[95%] relative">
-        <div className="prose dark:prose-invert prose-sm">
+        {/* Time display on hover - moved inside the content container for better alignment */}
+        {isHovering && messageTime && (
+          <div className="absolute -top-6 -left-2 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md z-10">
+            {messageTime}
+          </div>
+        )}
+        
+        {/* Pin indicator */}
+        {message.isPinned && (
+          <div className="absolute left-0 top-0 bottom-0 flex items-stretch">
+            <div className="w-1.5 bg-yellow-500/70 rounded-l-2xl"></div>
+          </div>
+        )}
+        
+        <div className={cn(
+          "prose dark:prose-invert prose-sm", 
+          message.isPinned && "pl-3"
+        )}>
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
         
         {/* Action buttons for assistant messages - now positioned closer to content */}
         <div 
           className={cn(
-            "absolute -bottom-7 left-0 flex items-center gap-1",
+            "absolute -bottom-7 -left-2 flex items-center gap-1 z-10",
             isHovering ? "opacity-100" : "opacity-0"
           )}
         >

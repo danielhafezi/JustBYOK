@@ -22,14 +22,19 @@ export const apiKeyStorage = {
       
       if (keys) {
         // Filter out any non-allowed keys (gpt-4o, etc.)
-        const { openai, anthropic, gemini, ...rest } = keys;
-        return { openai: openai || '', anthropic: anthropic || '', gemini: gemini || '' };
+        const { openai, anthropic, gemini, firecrawl, ...rest } = keys;
+        return { 
+          openai: openai || '', 
+          anthropic: anthropic || '', 
+          gemini: gemini || '',
+          firecrawl: firecrawl || ''
+        };
       }
       
-      return { openai: '', anthropic: '', gemini: '' };
+      return { openai: '', anthropic: '', gemini: '', firecrawl: '' };
     } catch (error) {
       console.error('Error getting API keys:', error);
-      return { openai: '', anthropic: '', gemini: '' };
+      return { openai: '', anthropic: '', gemini: '', firecrawl: '' };
     }
   },
   
@@ -38,8 +43,9 @@ export const apiKeyStorage = {
    */
   setApiKey: async (provider: keyof ApiKeys, key: string): Promise<void> => {
     try {
-      // Only allow openai, anthropic, and gemini
-      if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'gemini') {
+      // Only allow openai, anthropic, gemini, and firecrawl
+      if (provider !== 'openai' && provider !== 'anthropic' && 
+          provider !== 'gemini' && provider !== 'firecrawl') {
         console.error(`API key provider ${provider} is not supported`);
         return;
       }
@@ -115,9 +121,24 @@ export const apiKeyStorage = {
   },
 
   /**
+   * Get Firecrawl API key
+   */
+  getFirecrawlKey: (): string => {
+    const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
+    return keys.firecrawl || '';
+  },
+
+  /**
+   * Set Firecrawl API key
+   */
+  setFirecrawlKey: async (key: string): Promise<void> => {
+    await apiKeyStorage.setApiKey('firecrawl', key);
+  },
+
+  /**
    * Check if a key exists for a provider
    */
-  hasKey: (provider: 'openai' | 'anthropic' | 'gemini'): boolean => {
+  hasKey: (provider: 'openai' | 'anthropic' | 'gemini' | 'firecrawl'): boolean => {
     const keys = storage.get<ApiKeys>(API_KEYS_STORAGE_KEY, {});
     return !!keys[provider];
   },

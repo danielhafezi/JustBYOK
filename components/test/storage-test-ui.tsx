@@ -24,7 +24,7 @@ export function StorageTestUI() {
   const [retrievedValue, setRetrievedValue] = useState<any>(null);
   
   // State for API key test
-  const [provider, setProvider] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
+  const [provider, setProvider] = useState<'openai' | 'anthropic' | 'gemini' | 'firecrawl'>('openai');
   const [apiKey, setApiKey] = useState('');
   const [retrievedApiKey, setRetrievedApiKey] = useState('');
   
@@ -69,6 +69,9 @@ export function StorageTestUI() {
       case 'gemini':
         apiKeyStorage.setGeminiKey(apiKey);
         break;
+      case 'firecrawl':
+        apiKeyStorage.setFirecrawlKey(apiKey);
+        break;
     }
     
     setApiKey('');
@@ -87,6 +90,9 @@ export function StorageTestUI() {
         break;
       case 'gemini':
         key = apiKeyStorage.getGeminiKey();
+        break;
+      case 'firecrawl':
+        key = apiKeyStorage.getFirecrawlKey();
         break;
     }
     
@@ -181,6 +187,7 @@ export function StorageTestUI() {
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="gemini">Google Gemini</option>
+                  <option value="firecrawl">Firecrawl</option>
                 </select>
               </div>
               

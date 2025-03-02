@@ -153,6 +153,6 @@ export interface ApiKeys {
   openai?: string;
   anthropic?: string;
   gemini?: string;
-  azure?: string;
+  firecrawl?: string;
   [key: string]: string | undefined;
 }
