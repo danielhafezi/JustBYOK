@@ -5,6 +5,9 @@
 
 const APP_PREFIX = 'APP_';
 
+// Helper to check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
 /**
  * Get a value from localStorage
  * @param key The key to retrieve (without prefix)
@@ -13,6 +16,8 @@ const APP_PREFIX = 'APP_';
  */
 export const storage = {
   get: <T>(key: string, defaultValue?: T): T => {
+    if (!isBrowser) return defaultValue as T;
+    
     const rawValue = localStorage.getItem(`${APP_PREFIX}${key}`);
     if (!rawValue) return defaultValue as T;
     try {
@@ -35,6 +40,7 @@ export const storage = {
    * @param value The value to store
    */
   set: (key: string, value: any): void => {
+    if (!isBrowser) return;
     localStorage.setItem(`${APP_PREFIX}${key}`, JSON.stringify(value));
   },
 
@@ -43,6 +49,7 @@ export const storage = {
    * @param key The key to remove (without prefix)
    */
   remove: (key: string): void => {
+    if (!isBrowser) return;
     localStorage.removeItem(`${APP_PREFIX}${key}`);
   },
 
@@ -51,6 +58,8 @@ export const storage = {
    * @returns Array of keys without the prefix
    */
   getKeys: (): string[] => {
+    if (!isBrowser) return [];
+    
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -65,6 +74,8 @@ export const storage = {
    * Clear all app-related values from localStorage
    */
   clearAll: (): void => {
+    if (!isBrowser) return;
+    
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);

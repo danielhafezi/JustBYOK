@@ -126,7 +126,7 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
       >
         {/* Time display on hover */}
         {isHovering && messageTime && (
-          <div className="absolute -top-6 right-4 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md">
+          <div className="absolute -top-6 right-2 text-xs text-muted-foreground px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-md">
             {messageTime}
           </div>
         )}

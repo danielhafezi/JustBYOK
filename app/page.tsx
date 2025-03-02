@@ -11,10 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Moon, Sun, PanelLeftClose, PanelLeftOpen, Settings, LogOut, Key, Sliders, User, Pin } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useChatStore } from '@/hooks/use-chat-store';
+import { useProfileStore } from '@/hooks/use-profile-store';
 import { AIModel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,7 @@ export default function Home() {
   const [showPinnedMessages, setShowPinnedMessages] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
+  const [profilePhotoLink, setProfilePhotoLink] = useState<string>('');
   
   const {
     chats,
@@ -74,6 +76,10 @@ export default function Home() {
     togglePinMessage,
     isLoaded
   } = useChatStore();
+
+  const {
+    currentProfile
+  } = useProfileStore();
 
   // Set up Vercel AI SDK chat
   const {
@@ -314,6 +320,33 @@ export default function Home() {
     ? currentChat.messages.filter(msg => msg.isPinned)
     : uiMessages;
 
+  // Get the user's first initial for the avatar fallback
+  const userInitial = currentProfile?.name ? currentProfile.name.charAt(0).toUpperCase() : 'U';
+
+  // Load profile photo link from localStorage on initial render
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedProfilePhotoLink = localStorage.getItem('profilephotoLink') || '';
+      setProfilePhotoLink(storedProfilePhotoLink);
+      
+      // Listen for profile updates
+      const handleProfileUpdate = (event: CustomEvent) => {
+        const { avatar } = event.detail;
+        if (avatar) {
+          setProfilePhotoLink(avatar);
+        }
+      };
+      
+      // Add event listener
+      window.addEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      
+      // Clean up
+      return () => {
+        window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      };
+    }
+  }, []);
+
   if (!isLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -348,7 +381,6 @@ export default function Home() {
       <ModelSettingsDialog
         open={modelSettingsDialogOpen}
         onOpenChange={setModelSettingsDialogOpen}
-        currentModel={currentChat?.model || 'smart'}
       />
       
       {/* Pinned Messages Dialog */}
@@ -438,8 +470,18 @@ export default function Home() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Avatar className="h-8 w-8 cursor-pointer">
+                  {(currentProfile?.avatar || profilePhotoLink) ? (
+                    <AvatarImage 
+                      src={currentProfile?.avatar || profilePhotoLink} 
+                      alt={currentProfile?.name || 'User'} 
+                      onError={(e) => {
+                        // If image fails to load, show fallback
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    U
+                    {userInitial}
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>

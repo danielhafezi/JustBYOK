@@ -160,6 +160,8 @@ export function ModelSettingsDialog({
                   <SelectItem value="last5">Last 5 Messages</SelectItem>
                   <SelectItem value="last10">Last 10 Messages</SelectItem>
                   <SelectItem value="last20">Last 20 Messages</SelectItem>
+                  <SelectItem value="last50">Last 50 Messages</SelectItem>
+                  <SelectItem value="last100">Last 100 Messages</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -320,7 +322,7 @@ export function ModelSettingsDialog({
 
             {/* Reasoning Effort */}
             <div className="grid gap-2">
-              <Label htmlFor="reasoningEffort">Reasoning Effort</Label>
+              <Label htmlFor="reasoningEffort">Reasoning Effort (For Supported Models)</Label>
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="button"

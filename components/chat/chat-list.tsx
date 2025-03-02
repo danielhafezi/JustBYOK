@@ -173,6 +173,11 @@ export function ChatList({
     }
   };
   
+  // Added helper function to format chat titles to a maximum of 14 characters
+  const formatChatTitle = (title: string) => {
+    return title.length > 17 ? title.slice(0, 17) + '...' : title;
+  };
+
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, chatId: string) => {
     setDraggedChat(chatId);
@@ -425,7 +430,7 @@ export function ChatList({
                           >
                             <div className="flex w-full items-center">
                               <div className="mr-2">{getModelIcon(chat.model)}</div>
-                              <span className="truncate">{chat.title}</span>
+                              <span className="truncate">{formatChatTitle(chat.title)}</span>
                             </div>
                           </Button>
                           
@@ -570,7 +575,7 @@ export function ChatList({
                         >
                           <div className="flex w-full items-center">
                             <div className="mr-2">{getModelIcon(chat.model)}</div>
-                            <span className="truncate">{chat.title}</span>
+                            <span className="truncate">{formatChatTitle(chat.title)}</span>
                           </div>
                         </Button>
                       )}
@@ -718,7 +723,7 @@ export function ChatList({
                         >
                           <div className="flex w-full items-center">
                             <div className="mr-2">{getModelIcon(chat.model)}</div>
-                            <span className="truncate">{chat.title}</span>
+                            <span className="truncate">{formatChatTitle(chat.title)}</span>
                           </div>
                         </Button>
                       )}
