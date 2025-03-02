@@ -27,7 +27,7 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
     firecrawl: '',
   });
 
-  // Load API keys on mount
+  // Load API keys on mount and when dialog opens
   useEffect(() => {
     const loadApiKeys = async () => {
       try {
@@ -40,7 +40,28 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
       }
     };
     
-    loadApiKeys();
+    if (open) {
+      loadApiKeys();
+    }
+  }, [open]);
+
+  // Listen for API key updates from other components
+  useEffect(() => {
+    // Handler for Firecrawl API key updates
+    const handleFirecrawlKeyUpdate = (event: CustomEvent<{ key: string }>) => {
+      setApiKeys(prevKeys => ({
+        ...prevKeys,
+        firecrawl: event.detail.key
+      }));
+    };
+
+    // Add event listener
+    window.addEventListener('firecrawl-api-key-updated', handleFirecrawlKeyUpdate as EventListener);
+
+    // Clean up
+    return () => {
+      window.removeEventListener('firecrawl-api-key-updated', handleFirecrawlKeyUpdate as EventListener);
+    };
   }, []);
 
   const handleChangeKey = async (provider: keyof ApiKeys, value: string) => {
@@ -49,6 +70,13 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
     
     try {
       await apiKeyStorage.setApiKey(provider, value);
+      
+      // If updating Firecrawl key, dispatch event to notify other components
+      if (provider === 'firecrawl') {
+        window.dispatchEvent(new CustomEvent('firecrawl-api-key-updated', {
+          detail: { key: value }
+        }));
+      }
     } catch (error) {
       console.error(`Error saving ${provider} API key:`, error);
     }
@@ -113,7 +141,7 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
               placeholder="Firecrawl API key..."
             />
             <p className="text-xs text-muted-foreground">
-              Used for Firecrawl search functionality
+              <strong>Required</strong> for web search functionality. The globe button in the chat panel will not work without this key.
             </p>
           </div>
         </div>
@@ -122,7 +150,17 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
             className="text-destructive hover:text-destructive border border-input bg-background hover:bg-accent"
             onClick={() => {
               apiKeyStorage.clearAllApiKeys();
-              setApiKeys({});
+              setApiKeys({
+                openai: '',
+                anthropic: '',
+                gemini: '',
+                firecrawl: ''
+              });
+              
+              // Notify other components that keys have been cleared
+              window.dispatchEvent(new CustomEvent('firecrawl-api-key-updated', {
+                detail: { key: '' }
+              }));
             }}
           >
             Clear All Keys

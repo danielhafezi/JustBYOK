@@ -19,6 +19,17 @@ import {
 } from '@/components/ui/popover';
 import { Brain, Sparkles, Bot, Atom } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiKeyStorage } from '@/lib/api-keys';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface ChatPanelProps {
   isLoading: boolean;
@@ -48,6 +59,9 @@ export function ChatPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [firecrawlApiKey, setFirecrawlApiKey] = useState('');
+  const [showFirecrawlDialog, setShowFirecrawlDialog] = useState(false);
+  const [browseModeActive, setBrowseModeActive] = useState(false);
 
   // Set initial input value for editing mode
   useEffect(() => {
@@ -61,6 +75,39 @@ export function ChatPanel({
     if (inputRef.current) {
       inputRef.current.focus();
     }
+  }, []);
+
+  // Check for Firecrawl API key on mount
+  useEffect(() => {
+    const key = apiKeyStorage.getFirecrawlKey();
+    setFirecrawlApiKey(key);
+    
+    // If key exists, check if browse mode should be active
+    if (key) {
+      // You could add logic here to determine if browse mode should be active by default
+      // For now, we'll leave it inactive until user clicks the button
+    }
+  }, []);
+
+  // Listen for API key updates from other components (like the API keys dialog)
+  useEffect(() => {
+    // Handler for Firecrawl API key updates
+    const handleFirecrawlKeyUpdate = (event: CustomEvent<{ key: string }>) => {
+      setFirecrawlApiKey(event.detail.key);
+      
+      // If key was cleared, disable browse mode
+      if (!event.detail.key) {
+        setBrowseModeActive(false);
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('firecrawl-api-key-updated', handleFirecrawlKeyUpdate as EventListener);
+
+    // Clean up
+    return () => {
+      window.removeEventListener('firecrawl-api-key-updated', handleFirecrawlKeyUpdate as EventListener);
+    };
   }, []);
 
   // Auto-resize textarea based on content
@@ -116,6 +163,46 @@ export function ChatPanel({
       // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle browse button click
+  const handleBrowseClick = () => {
+    // Always get the latest key from storage
+    const key = apiKeyStorage.getFirecrawlKey();
+    
+    if (!key) {
+      // Update the local state with the latest key (which is empty)
+      setFirecrawlApiKey('');
+      setShowFirecrawlDialog(true);
+    } else {
+      // Update the local state with the latest key
+      setFirecrawlApiKey(key);
+      // Toggle browse mode if API key exists
+      setBrowseModeActive(!browseModeActive);
+    }
+  };
+
+  // Handle saving Firecrawl API key
+  const handleSaveFirecrawlKey = async () => {
+    if (firecrawlApiKey.trim()) {
+      try {
+        // Save the API key using the storage utility
+        await apiKeyStorage.setFirecrawlKey(firecrawlApiKey);
+        
+        // Close the dialog
+        setShowFirecrawlDialog(false);
+        
+        // Activate browse mode after saving key
+        setBrowseModeActive(true);
+        
+        // Dispatch a custom event to notify other components about the API key change
+        window.dispatchEvent(new CustomEvent('firecrawl-api-key-updated', {
+          detail: { key: firecrawlApiKey }
+        }));
+      } catch (error) {
+        console.error('Error saving Firecrawl API key:', error);
       }
     }
   };
@@ -230,13 +317,19 @@ export function ChatPanel({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 rounded-full bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 p-0 active:bg-blue-500 dark:active:bg-blue-600 active:text-white dark:active:text-white"
+                      onClick={handleBrowseClick}
+                      className={cn(
+                        "h-7 w-7 rounded-full p-0",
+                        browseModeActive 
+                          ? "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700" 
+                          : "bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200"
+                      )}
                     >
                       <Globe className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Browse</p>
+                    <p>{browseModeActive ? "Web search enabled" : "Enable web search"}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -385,6 +478,42 @@ export function ChatPanel({
           </div>
         </div>
       </form>
+
+      {/* Firecrawl API Key Dialog */}
+      <Dialog open={showFirecrawlDialog} onOpenChange={setShowFirecrawlDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Web Search API Key Required</DialogTitle>
+            <DialogDescription>
+              To use web search functionality, you need to enter a Firecrawl API key.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="firecrawl-key">Firecrawl API Key</Label>
+              <Input
+                id="firecrawl-key"
+                type="password"
+                value={firecrawlApiKey}
+                onChange={(e) => setFirecrawlApiKey(e.target.value)}
+                placeholder="Enter your Firecrawl API key..."
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                This key will be saved in your browser's local storage.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowFirecrawlDialog(false)} variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveFirecrawlKey} disabled={!firecrawlApiKey.trim()}>
+              Save & Enable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
