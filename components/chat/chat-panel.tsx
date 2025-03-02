@@ -129,20 +129,21 @@ export function ChatPanel({
   };
 
   // Ensure model is a valid value
-  const validModel: AIModel = ['smart', 'openai', 'anthropic', 'gemini'].includes(model) 
+  const validModel: AIModel = AI_MODELS.some(m => m.id === model) 
     ? model as AIModel 
-    : 'smart';
+    : 'gpt4o';
 
   // Get model icon and name for the selected model
   const getModelIcon = (modelType: string) => {
-    switch (modelType) {
-      case 'smart':
+    const modelConfig = AI_MODELS.find(m => m.id === modelType);
+    switch (modelConfig?.icon) {
+      case 'brain':
         return <Brain className="h-4 w-4" />;
-      case 'openai':
+      case 'sparkles':
         return <Sparkles className="h-4 w-4" />;
-      case 'anthropic':
+      case 'bot':
         return <Bot className="h-4 w-4" />;
-      case 'gemini':
+      case 'atom':
         return <Atom className="h-4 w-4" />;
       default:
         return <Brain className="h-4 w-4" />;
@@ -150,18 +151,8 @@ export function ChatPanel({
   };
 
   const getModelDisplayName = (modelType: string) => {
-    switch (modelType) {
-      case 'smart':
-        return 'Smart';
-      case 'openai':
-        return 'GPT-4o';
-      case 'anthropic':
-        return 'Claude 3';
-      case 'gemini':
-        return 'Gemini';
-      default:
-        return 'Smart';
-    }
+    const modelConfig = AI_MODELS.find(m => m.id === modelType);
+    return modelConfig?.name || 'Smart';
   };
 
   const modelIcon = getModelIcon(validModel);
@@ -239,7 +230,7 @@ export function ChatPanel({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 rounded-full bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 p-0 active:bg-blue-500 dark:active:bg-blue-600 active:text-white dark:active:text-white focus:bg-blue-500 dark:focus:bg-blue-600 focus:text-white dark:focus:text-white"
+                      className="h-7 w-7 rounded-full bg-gray-300/80 hover:bg-gray-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-neutral-200 p-0 active:bg-blue-500 dark:active:bg-blue-600 active:text-white dark:active:text-white"
                     >
                       <Globe className="h-4 w-4" />
                     </Button>
@@ -292,33 +283,8 @@ export function ChatPanel({
                       <ChevronDown className="h-3 w-3" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[200px] p-2 bg-gray-200 dark:bg-neutral-900 rounded-md" align="end">
+                  <PopoverContent className="w-[230px] p-2 bg-gray-200 dark:bg-neutral-900 rounded-md" align="end">
                     <div className="space-y-2">
-                      {/* Smart Selection */}
-                      <div className="space-y-1">
-                        <div className="text-xs font-medium text-gray-500 dark:text-neutral-400 px-2 py-1">Recommended</div>
-                        {AI_MODELS.filter(m => m.category === 'smart').map((item) => (
-                          <Button
-                            key={item.name}
-                            variant="ghost"
-                            size="sm"
-                            className={cn(
-                              "w-full justify-start text-xs text-gray-700 dark:text-neutral-300 rounded-md",
-                              validModel === item.id && "bg-gray-300 dark:bg-neutral-800"
-                            )}
-                            onClick={() => {
-                              onModelChange(item.id as AIModel);
-                              setModelDropdownOpen(false);
-                            }}
-                          >
-                            <div className="flex items-center">
-                              <Brain className="mr-2 h-3 w-3" />
-                              {item.name}
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                      
                       {/* OpenAI Models */}
                       <div className="space-y-1">
                         <div className="text-xs font-medium text-gray-500 dark:text-neutral-400 px-2 py-1">OpenAI</div>
@@ -344,7 +310,55 @@ export function ChatPanel({
                         ))}
                       </div>
                       
-                      {/* Other model categories... */}
+                      {/* Anthropic Models */}
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-gray-500 dark:text-neutral-400 px-2 py-1">Anthropic</div>
+                        {AI_MODELS.filter(m => m.category === 'anthropic').map((item) => (
+                          <Button
+                            key={item.name}
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start text-xs text-gray-700 dark:text-neutral-300 rounded-md",
+                              validModel === item.id && "bg-gray-300 dark:bg-neutral-800"
+                            )}
+                            onClick={() => {
+                              onModelChange(item.id as AIModel);
+                              setModelDropdownOpen(false);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              <Bot className="mr-2 h-3 w-3" />
+                              {item.name}
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                      
+                      {/* Google Models */}
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-gray-500 dark:text-neutral-400 px-2 py-1">Google</div>
+                        {AI_MODELS.filter(m => m.category === 'gemini').map((item) => (
+                          <Button
+                            key={item.name}
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start text-xs text-gray-700 dark:text-neutral-300 rounded-md",
+                              validModel === item.id && "bg-gray-300 dark:bg-neutral-800"
+                            )}
+                            onClick={() => {
+                              onModelChange(item.id as AIModel);
+                              setModelDropdownOpen(false);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              <Atom className="mr-2 h-3 w-3" />
+                              {item.name}
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </PopoverContent>
                 </Popover>

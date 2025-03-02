@@ -146,7 +146,7 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
               ? "rounded-tr-md rounded-br-2xl rounded-tl-sm rounded-bl-sm" 
               : "rounded-tl-2xl rounded-bl-2xl rounded-tr-md rounded-br-2xl"
           )}>
-            <div className="prose dark:prose-invert prose-sm">
+            <div className="prose dark:prose-invert prose-sm" style={{ fontFamily: 'Vazirmatn, sans-serif' }}>
               <ReactMarkdown>{message.content}</ReactMarkdown>
             </div>
             
@@ -215,7 +215,7 @@ export function ChatMessage({ message, model, onTogglePin }: ChatMessageProps) {
         <div className={cn(
           "prose dark:prose-invert prose-sm", 
           message.isPinned && "pl-3"
-        )}>
+        )} style={{ fontFamily: 'Vazirmatn, sans-serif' }}>
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
         

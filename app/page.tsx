@@ -93,7 +93,7 @@ export default function Home() {
   } = useChat({
     api: '/api/chat',
     body: {
-      model: currentChat?.model || 'smart',
+      model: currentChat?.model || 'gpt4o',
     },
     onFinish: (message) => {
       if (currentChat) {
@@ -553,7 +553,7 @@ export default function Home() {
 
   if (messageDate !== prevMessageDate) {
     acc.push(
-      <div key={`date-separator-${messageDate}`} className="flex items-center my-4">
+      <div key={`date-separator-${messageDate}-${index}`} className="flex items-center my-4">
         <div className="flex-grow border-t border-gray-300"></div>
         <span className="mx-4 text-xs text-gray-500">{messageDate}</span>
         <div className="flex-grow border-t border-gray-300"></div>

@@ -310,7 +310,7 @@ export function useChatStore() {
   /**
    * Create a new chat
    */
-  const createChat = useCallback(async (model: AIModel = 'smart') => {
+  const createChat = useCallback(async (model: AIModel = 'gpt4o') => {
     const newChat = createNewChat(model);
     
     // Update local state (optimistic update)
@@ -586,7 +586,7 @@ setChats(prev => prev.map(chat => {
   /**
    * Create a new empty chat
    */
-  function createNewChat(model: AIModel = 'smart'): Chat {
+  function createNewChat(model: AIModel = 'gpt4o'): Chat {
     return {
       id: generateId(),
       title: 'New Chat',

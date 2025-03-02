@@ -30,9 +30,9 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
 
   // Validate model - ensure we always have a valid model even if somehow an invalid one is passed
-  const validModel: AIModel = ['smart', 'openai', 'anthropic', 'gemini'].includes(model) 
+  const validModel: AIModel = AI_MODELS.some(m => m.id === model) 
     ? model as AIModel 
-    : 'openai';
+    : 'gpt4o'; // Default to GPT-4o if invalid model
 
   const getModelIcon = (iconName: string) => {
     switch (iconName) {
@@ -49,23 +49,28 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
     }
   };
 
-  // Get all models of the selected category
-  const modelsInCategory = AI_MODELS.filter(m => m.id === validModel);
-  // Get the first model in the selected category (default selection)
-  const selectedModel = modelsInCategory.length > 0 ? modelsInCategory[0] : AI_MODELS[0];
+  // Get all models with the matching category as the selected model
+  const selectedModelConfig = AI_MODELS.find(m => m.id === validModel);
+  const selectedCategory = selectedModelConfig?.category || 'openai';
+  const modelsInCategory = AI_MODELS.filter(m => m.category === selectedCategory);
+  
+  // Get the current model config
+  const selectedModel = AI_MODELS.find(m => m.id === validModel) || AI_MODELS[0];
 
   // Group models by category
-  const smartModel = AI_MODELS.filter(m => m.category === 'smart');
   const openaiModels = AI_MODELS.filter(m => m.category === 'openai');
   const anthropicModels = AI_MODELS.filter(m => m.category === 'anthropic');
   const geminiModels = AI_MODELS.filter(m => m.category === 'gemini');
 
   const handleSelect = (value: string) => {
-    // Validate the selected model is one of the acceptable values
-    if (['smart', 'openai', 'anthropic', 'gemini'].includes(value)) {
+    // Find the model by ID and validate it exists
+    const modelExists = AI_MODELS.some(m => m.id === value);
+    if (modelExists) {
       onModelChange(value as AIModel);
     } else {
-      onModelChange('openai');
+      // Default to the first model in the OpenAI category if invalid
+      const defaultModel = AI_MODELS.find(m => m.category === 'openai')?.id || 'gpt4o';
+      onModelChange(defaultModel as AIModel);
     }
     setOpen(false);
   };
@@ -86,35 +91,11 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[250px] p-0">
+      <PopoverContent className="w-[280px] p-0">
         <Command>
           <CommandInput placeholder="Search models..." />
           <CommandEmpty>No model found.</CommandEmpty>
           <CommandList>
-            {/* Smart Selection Option */}
-            <CommandGroup heading="Recommended">
-              {smartModel.map((item) => (
-                <CommandItem
-                  key={item.name}
-                  value={item.id}
-                  onSelect={handleSelect}
-                >
-                  <div className="flex items-center">
-                    {getModelIcon(item.icon)}
-                    {item.name}
-                  </div>
-                  <Check
-                    className={cn(
-                      'ml-auto h-4 w-4',
-                      validModel === item.id ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            
-            <CommandSeparator />
-            
             <CommandGroup heading="OpenAI">
               {openaiModels.map((item) => (
                 <CommandItem

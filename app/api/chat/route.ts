@@ -23,34 +23,44 @@ export async function POST(req: Request) {
       return new Response('Missing messages', { status: 400 });
     }
 
-    // For the smart model, analyze the messages and select the best model
-    let selectedModel = model;
+    // Determine provider based on model ID
+    let provider: 'openai' | 'anthropic' | 'gemini';
+    let apiModel: string;
     
-    if (model === 'smart') {
-      // Simple logic to select a model based on the last user message
-      const lastUserMessage = [...messages].reverse().find(msg => msg.role === 'user')?.content || '';
-      
-      // Simple keyword-based selection (in a real app, this would be more sophisticated)
-      if (lastUserMessage.toLowerCase().includes('code') || 
-          lastUserMessage.toLowerCase().includes('program') ||
-          lastUserMessage.toLowerCase().includes('function')) {
-        selectedModel = 'openai'; // Good for code
-      } else if (lastUserMessage.toLowerCase().includes('creative') || 
-                lastUserMessage.toLowerCase().includes('story') ||
-                lastUserMessage.toLowerCase().includes('write')) {
-        selectedModel = 'anthropic'; // Good for creative writing
-      } else if (lastUserMessage.toLowerCase().includes('summarize') || 
-                lastUserMessage.toLowerCase().includes('explain') ||
-                lastUserMessage.toLowerCase().includes('simple')) {
-        selectedModel = 'gemini'; // Good for explanations
-      } else {
-        // Default to OpenAI for general queries
-        selectedModel = 'openai';
+    // Map the model ID to the provider and specific API model
+    if (model === 'gpt4o' || model === 'gpt4o-mini' || model === 'gpt45-preview') {
+      provider = 'openai';
+      // Map the model ID to the specific OpenAI API model name
+      switch (model) {
+        case 'gpt4o':
+          apiModel = 'gpt-4o';
+          break;
+        case 'gpt4o-mini':
+          apiModel = 'gpt-4o-mini';
+          break;
+        case 'gpt45-preview':
+          apiModel = 'gpt-4.5-preview';
+          break;
+        default:
+          apiModel = 'gpt-4o';
       }
+    } else if (model === 'claude-3-sonnet' || model === 'claude-3-sonnet-reasoning') {
+      provider = 'anthropic';
+      // Map the model ID to the specific Anthropic API model name
+      apiModel = model === 'claude-3-sonnet-reasoning' 
+        ? 'claude-3-sonnet-20240229' // Use same model but we'll adjust parameters for reasoning
+        : 'claude-3-sonnet-20240229';
+    } else if (model === 'gemini-flash-2') {
+      provider = 'gemini';
+      apiModel = 'gemini-1.5-flash';
+    } else {
+      // Default to OpenAI GPT-4o for any unrecognized models
+      provider = 'openai';
+      apiModel = 'gpt-4o';
     }
 
     // Validate API keys
-    switch (selectedModel) {
+    switch (provider) {
       case 'openai':
         if (!process.env.OPENAI_API_KEY) {
           return new Response('OpenAI API key is not configured', { status: 500 });
@@ -70,11 +80,11 @@ export async function POST(req: Request) {
         return new Response('Invalid model specified', { status: 400 });
     }
 
-    // Process messages based on the selected model
-    switch (selectedModel) {
+    // Process messages based on the selected provider
+    switch (provider) {
       case 'openai': {
         const response = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: apiModel,
           messages,
           temperature: 0.7,
           stream: true,
@@ -95,10 +105,14 @@ export async function POST(req: Request) {
           content: msg.content,
         }));
 
+        // For reasoning variant, adjust parameters
+        const temperature = model === 'claude-3-sonnet-reasoning' ? 0.1 : 0.7;
+
         const response = await anthropic.messages.create({
-          model: 'claude-3-opus-20240229',
+          model: apiModel,
           messages: anthropicMessages,
           max_tokens: 1024,
+          temperature,
           stream: true,
         });
         
@@ -123,7 +137,7 @@ export async function POST(req: Request) {
 
       case 'gemini': {
         // Initialize the model
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const model = genAI.getGenerativeModel({ model: apiModel });
         
         // Format messages for Gemini
         const formattedMessages = messages.map((msg: any) => ({

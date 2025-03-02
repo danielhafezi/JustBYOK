@@ -27,26 +27,26 @@ export type Chat = {
   pinnedMessageIds?: string[];
 };
 
-export type AIModel = 'smart' | 'openai' | 'anthropic' | 'gemini';
+export type AIModel = 
+  | 'gpt4o' 
+  | 'gpt4o-mini' 
+  | 'gpt45-preview'
+  | 'claude-3-sonnet'
+  | 'claude-3-sonnet-reasoning'
+  | 'gemini-flash-2';
 
 export const AI_MODELS = [
-  // Smart Selection
-  { id: 'smart', name: 'Smart Selection', icon: 'brain', category: 'smart' },
-  
   // OpenAI Models
-  { id: 'openai', name: 'OpenAI GPT-4o', icon: 'sparkles', category: 'openai' },
-  { id: 'openai', name: 'OpenAI GPT-4 Turbo', icon: 'sparkles', category: 'openai' },
-  { id: 'openai', name: 'OpenAI GPT-3.5 Turbo', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt4o', name: 'GPT-4o', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt4o-mini', name: 'GPT-4o mini', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt45-preview', name: 'GPT 4.5 Preview', icon: 'sparkles', category: 'openai' },
   
   // Anthropic Models
-  { id: 'anthropic', name: 'Anthropic Claude 3 Opus', icon: 'bot', category: 'anthropic' },
-  { id: 'anthropic', name: 'Anthropic Claude 3 Sonnet', icon: 'bot', category: 'anthropic' },
-  { id: 'anthropic', name: 'Anthropic Claude 3 Haiku', icon: 'bot', category: 'anthropic' },
+  { id: 'claude-3-sonnet', name: 'Claude Sonnet 3.7', icon: 'bot', category: 'anthropic' },
+  { id: 'claude-3-sonnet-reasoning', name: 'Claude Sonnet 3.7 (Reasoning)', icon: 'bot', category: 'anthropic' },
   
   // Google Models
-  { id: 'gemini', name: 'Google Gemini Pro', icon: 'atom', category: 'gemini' },
-  { id: 'gemini', name: 'Google Gemini Flash', icon: 'atom', category: 'gemini' },
-  { id: 'gemini', name: 'Google Gemini Ultra', icon: 'atom', category: 'gemini' }
+  { id: 'gemini-flash-2', name: 'Gemini Flash 2', icon: 'atom', category: 'gemini' }
 ];
 
 /**
@@ -92,7 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageBubbleStyle: 'modern',
   enterToSend: true,
   showTimestamps: true,
-  defaultModel: 'smart',
+  defaultModel: 'gpt4o',
   autoSaveDrafts: true,
   autoGenerateTitles: true,
   modelSettings: {
@@ -109,7 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
     systemPrompt: '',
     contextLength: 2048,
     contextStrategy: 'basic',
-    defaultModel: 'smart',
+    defaultModel: 'gpt4o',
     enabledPlugins: [],
     safetySettings: {
       harassment: 'none',
