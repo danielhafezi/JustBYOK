@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description: Project Documentation for Chat API Integration
+globs: app/**/*ts, app/*.tsx, components/settings/*.tsx, 
 alwaysApply: false
 ---
 # Project Documentation for Chat API Integration
@@ -176,7 +176,3 @@ When adding models from other providers, consider the following guidelines:
 
 5. **Documentation Updates:**
    - Update this documentation to reflect the changes and specific configurations for the new provider. Keeping clear documentation will simplify future maintenance and integration tasks.
-
----
-
-This documentation should serve as a comprehensive reference for all the work we’ve done to implement and refine the chat API integration. If you have any questions or need further modifications, feel free to ask.
