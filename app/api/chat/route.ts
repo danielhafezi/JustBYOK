@@ -1,4 +1,3 @@
-import { OpenAIStream, AnthropicStream, StreamingTextResponse } from 'ai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -80,8 +79,13 @@ export async function POST(req: Request) {
           temperature: 0.7,
           stream: true,
         });
-        const stream = OpenAIStream(response);
-        return new StreamingTextResponse(stream);
+        
+        // Use type assertion to access the body property
+        return new Response((response as any).body, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        });
       }
 
       case 'anthropic': {
@@ -97,8 +101,24 @@ export async function POST(req: Request) {
           max_tokens: 1024,
           stream: true,
         });
-        const stream = AnthropicStream(response);
-        return new StreamingTextResponse(stream);
+        
+        // Create a ReadableStream from the Anthropic stream
+        const stream = new ReadableStream({
+          async start(controller) {
+            for await (const chunk of response) {
+              if (chunk.type === 'content_block_delta' && chunk.delta.text) {
+                controller.enqueue(new TextEncoder().encode(chunk.delta.text));
+              }
+            }
+            controller.close();
+          },
+        });
+        
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        });
       }
 
       case 'gemini': {
@@ -132,7 +152,11 @@ export async function POST(req: Request) {
           },
         });
 
-        return new StreamingTextResponse(stream);
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        });
       }
 
       default:
