@@ -320,7 +320,7 @@ export function useChatStore() {
   /**
    * Create a new chat
    */
-  const createChat = useCallback(async (model: AIModel = 'gpt4o') => {
+  const createChat = useCallback(async (model: AIModel = 'gpt-4o') => {
     const newChat = createNewChat(model);
     
     // Update local state (optimistic update)
@@ -495,7 +495,7 @@ export function useChatStore() {
       // Determine provider based on model ID
       let provider: string;
       
-      if (['gpt4o', 'gpt4o-mini', 'gpt45-preview'].includes(model as string)) {
+      if (['gpt-4o', 'gpt-4o-mini', 'gpt45-preview'].includes(model as string)) {
         provider = 'openai';
       } else if (['claude-3-sonnet', 'claude-3-sonnet-reasoning'].includes(model as string)) {
         provider = 'anthropic';
@@ -906,7 +906,7 @@ export function useChatStore() {
   /**
    * Create a new empty chat
    */
-  function createNewChat(model: AIModel = 'gpt4o'): Chat {
+  function createNewChat(model: AIModel = 'gpt-4o'): Chat {
     return {
       id: generateId(),
       title: 'New Chat',

@@ -28,8 +28,8 @@ export type Chat = {
 };
 
 export type AIModel = 
-  | 'gpt4o' 
-  | 'gpt4o-mini' 
+  | 'gpt-4o' 
+  | 'gpt-4o-mini' 
   | 'gpt45-preview'
   | 'claude-3-sonnet'
   | 'claude-3-sonnet-reasoning'
@@ -37,8 +37,8 @@ export type AIModel =
 
 export const AI_MODELS = [
   // OpenAI Models
-  { id: 'gpt4o', name: 'GPT-4o', icon: 'sparkles', category: 'openai' },
-  { id: 'gpt4o-mini', name: 'GPT-4o mini', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt-4o', name: 'GPT-4o', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o mini', icon: 'sparkles', category: 'openai' },
   { id: 'gpt45-preview', name: 'GPT 4.5 Preview', icon: 'sparkles', category: 'openai' },
   
   // Anthropic Models
@@ -92,7 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageBubbleStyle: 'modern',
   enterToSend: true,
   showTimestamps: true,
-  defaultModel: 'gpt4o',
+  defaultModel: 'gpt-4o',
   autoSaveDrafts: true,
   autoGenerateTitles: true,
   modelSettings: {
@@ -109,7 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
     systemPrompt: '',
     contextLength: 2048,
     contextStrategy: 'basic',
-    defaultModel: 'gpt4o',
+    defaultModel: 'gpt-4o',
     enabledPlugins: [],
     safetySettings: {
       harassment: 'none',

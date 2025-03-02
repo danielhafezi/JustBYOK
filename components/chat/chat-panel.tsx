@@ -218,7 +218,7 @@ export function ChatPanel({
   // Ensure model is a valid value
   const validModel: AIModel = AI_MODELS.some(m => m.id === model) 
     ? model as AIModel 
-    : 'gpt4o';
+    : 'gpt-4o';
 
   // Get model icon and name for the selected model
   const getModelIcon = (modelType: string) => {

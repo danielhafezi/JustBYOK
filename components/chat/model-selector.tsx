@@ -32,7 +32,7 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
   // Validate model - ensure we always have a valid model even if somehow an invalid one is passed
   const validModel: AIModel = AI_MODELS.some(m => m.id === model) 
     ? model as AIModel 
-    : 'gpt4o'; // Default to GPT-4o if invalid model
+    : 'gpt-4o'; // Default to GPT-4o if invalid model
 
   const getModelIcon = (iconName: string) => {
     switch (iconName) {
@@ -69,7 +69,7 @@ export function ModelSelector({ model, onModelChange }: ModelSelectorProps) {
       onModelChange(value as AIModel);
     } else {
       // Default to the first model in the OpenAI category if invalid
-      const defaultModel = AI_MODELS.find(m => m.category === 'openai')?.id || 'gpt4o';
+      const defaultModel = AI_MODELS.find(m => m.category === 'openai')?.id || 'gpt-4o';
       onModelChange(defaultModel as AIModel);
     }
     setOpen(false);

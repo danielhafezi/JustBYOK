@@ -39,10 +39,11 @@ export async function POST(req: Request) {
     // Our internal model names omit the hyphens
     let openAIModel: string;
     switch (model) {
-      case 'gpt4o':
+      case 'gpt-4o':
+        // Use the base model name without version for latest version
         openAIModel = 'gpt-4o';
         break;
-      case 'gpt4o-mini':
+      case 'gpt-4o-mini':
         openAIModel = 'gpt-4o-mini';
         break;
       case 'gpt45-preview':
@@ -54,6 +55,13 @@ export async function POST(req: Request) {
     }
     
     console.log('Calling OpenAI with model:', openAIModel);
+    console.log('API request parameters:', {
+      model: openAIModel,
+      messagesCount: messages.length,
+      temperature: 0.7,
+      max_tokens: 1000,
+      stream: true
+    });
     
     try {
       // Create a streaming response
@@ -128,12 +136,28 @@ export async function POST(req: Request) {
         },
       });
       
-    } catch (openAIError: any) {
-      console.error('OpenAI API error:', openAIError);
-      return Response.json({ 
-        success: false,
-        error: `OpenAI API error: ${openAIError.message || 'Unknown error'}` 
-      }, { status: 500 });
+    } catch (error: any) {
+      console.error('Error calling OpenAI API:', error);
+      
+      // Provide more detailed error information
+      let errorMessage = 'An error occurred while generating the response.';
+      let statusCode = 500;
+      
+      if (error.status === 400) {
+        errorMessage = `Bad request error: ${error.message || 'Invalid request parameters'}`;
+        statusCode = 400;
+      } else if (error.status === 401) {
+        errorMessage = 'Authentication error: Invalid API key';
+        statusCode = 401;
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded: Too many requests';
+        statusCode = 429;
+      } else if (error.status === 404) {
+        errorMessage = `Model not found: ${openAIModel} is not available or doesn't exist`;
+        statusCode = 404;
+      }
+      
+      return Response.json({ error: errorMessage }, { status: statusCode });
     }
     
   } catch (error: any) {

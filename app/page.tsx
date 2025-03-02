@@ -94,7 +94,7 @@ export default function Home() {
   } = useChat({
     api: '/api/chat',
     body: {
-      model: currentChat?.model || 'gpt4o',
+      model: currentChat?.model || 'gpt-4o',
     },
     onFinish: (message) => {
       if (currentChat) {
