@@ -1,26 +1,18 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-
-// Create clients for each AI provider
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-});
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
 
 export const runtime = 'edge';
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const { messages, model } = await req.json();
+    const { messages, apiKey, model } = await req.json();
 
     if (!messages) {
-      return new Response('Missing messages', { status: 400 });
+      return Response.json(
+        { error: 'Missing messages' },
+        { status: 400 }
+      );
     }
 
     // Determine provider based on model ID
@@ -28,7 +20,7 @@ export async function POST(req: Request) {
     let apiModel: string;
     
     // Map the model ID to the provider and specific API model
-    if (model === 'gpt4o' || model === 'gpt4o-mini' || model === 'gpt45-preview') {
+    if (model === 'gpt4-o' || model === 'gpt4o-mini' || model === 'gpt45-preview') {
       provider = 'openai';
       // Map the model ID to the specific OpenAI API model name
       switch (model) {
@@ -46,10 +38,7 @@ export async function POST(req: Request) {
       }
     } else if (model === 'claude-3-sonnet' || model === 'claude-3-sonnet-reasoning') {
       provider = 'anthropic';
-      // Map the model ID to the specific Anthropic API model name
-      apiModel = model === 'claude-3-sonnet-reasoning' 
-        ? 'claude-3-sonnet-20240229' // Use same model but we'll adjust parameters for reasoning
-        : 'claude-3-sonnet-20240229';
+      apiModel = 'claude-3-sonnet-20240229';
     } else if (model === 'gemini-flash-2') {
       provider = 'gemini';
       apiModel = 'gemini-1.5-flash';
@@ -59,125 +48,62 @@ export async function POST(req: Request) {
       apiModel = 'gpt-4o';
     }
 
-    // Validate API keys
-    switch (provider) {
-      case 'openai':
-        if (!process.env.OPENAI_API_KEY) {
-          return new Response('OpenAI API key is not configured', { status: 500 });
-        }
-        break;
-      case 'anthropic':
-        if (!process.env.ANTHROPIC_API_KEY) {
-          return new Response('Anthropic API key is not configured', { status: 500 });
-        }
-        break;
-      case 'gemini':
-        if (!process.env.GEMINI_API_KEY) {
-          return new Response('Gemini API key is not configured', { status: 500 });
-        }
-        break;
-      default:
-        return new Response('Invalid model specified', { status: 400 });
+    // Check API key based on provider
+    if (provider === 'openai' && !apiKey) {
+      return Response.json(
+        { error: 'OpenAI API key is required' },
+        { status: 400 }
+      );
     }
 
-    // Process messages based on the selected provider
-    switch (provider) {
-      case 'openai': {
-        const response = await openai.chat.completions.create({
-          model: apiModel,
-          messages,
-          temperature: 0.7,
-          stream: true,
-        });
-        
-        // Use type assertion to access the body property
-        return new Response((response as any).body, {
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        });
+    try {
+      let result;
+
+      // Process messages based on the selected provider
+      switch (provider) {
+        case 'openai': {
+          // Store the original API key if it exists
+          const originalApiKey = process.env.OPENAI_API_KEY;
+          
+          // Temporarily set the API key from the request
+          process.env.OPENAI_API_KEY = apiKey;
+          
+          try {
+            // Use the OpenAI API with the environment variable
+            result = streamText({
+              model: openai(apiModel as any),
+              messages,
+              temperature: 0.7,
+            });
+            
+            return result.toDataStreamResponse();
+          } finally {
+            // Restore the original API key
+            process.env.OPENAI_API_KEY = originalApiKey;
+          }
+        }
+
+        case 'anthropic':
+        case 'gemini': 
+        default:
+          // For now, only supporting OpenAI
+          return Response.json(
+            { error: `The ${provider} provider is not currently supported with user API keys` },
+            { status: 400 }
+          );
       }
-
-      case 'anthropic': {
-        // Convert message format for Anthropic
-        const anthropicMessages = messages.map((msg: any) => ({
-          role: msg.role === 'assistant' ? 'assistant' : 'user',
-          content: msg.content,
-        }));
-
-        // For reasoning variant, adjust parameters
-        const temperature = model === 'claude-3-sonnet-reasoning' ? 0.1 : 0.7;
-
-        const response = await anthropic.messages.create({
-          model: apiModel,
-          messages: anthropicMessages,
-          max_tokens: 1024,
-          temperature,
-          stream: true,
-        });
-        
-        // Create a ReadableStream from the Anthropic stream
-        const stream = new ReadableStream({
-          async start(controller) {
-            for await (const chunk of response) {
-              if (chunk.type === 'content_block_delta' && chunk.delta.text) {
-                controller.enqueue(new TextEncoder().encode(chunk.delta.text));
-              }
-            }
-            controller.close();
-          },
-        });
-        
-        return new Response(stream, {
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        });
-      }
-
-      case 'gemini': {
-        // Initialize the model
-        const model = genAI.getGenerativeModel({ model: apiModel });
-        
-        // Format messages for Gemini
-        const formattedMessages = messages.map((msg: any) => ({
-          role: msg.role,
-          parts: [{ text: msg.content }],
-        }));
-
-        // Create a chat session
-        const chat = model.startChat({
-          history: formattedMessages,
-        });
-
-        // Generate streaming response
-        const result = await chat.sendMessageStream('');
-        
-        // Convert stream to readable stream
-        const stream = new ReadableStream({
-          async start(controller) {
-            for await (const chunk of result.stream) {
-              const text = chunk.text();
-              if (text) {
-                controller.enqueue(new TextEncoder().encode(text));
-              }
-            }
-            controller.close();
-          },
-        });
-
-        return new Response(stream, {
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        });
-      }
-
-      default:
-        return new Response('Invalid model', { status: 400 });
+    } catch (error: any) {
+      console.error('Error generating response:', error);
+      return Response.json(
+        { error: `Error generating response: ${error.message}` },
+        { status: 500 }
+      );
     }
   } catch (error: any) {
     console.error('Error in chat API:', error);
-    return new Response(`Error: ${error.message}`, { status: 500 });
+    return Response.json(
+      { error: `Error: ${error.message}` },
+      { status: 500 }
+    );
   }
 }

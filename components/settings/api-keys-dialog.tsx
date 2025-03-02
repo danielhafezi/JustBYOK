@@ -71,6 +71,11 @@ export function ApiKeysDialog({ open, onOpenChange }: ApiKeysDialogProps) {
     try {
       await apiKeyStorage.setApiKey(provider, value);
       
+      // Dispatch a general API key update event for all providers
+      window.dispatchEvent(new CustomEvent('api-key-update', {
+        detail: { provider, key: value }
+      }));
+      
       // If updating Firecrawl key, dispatch event to notify other components
       if (provider === 'firecrawl') {
         window.dispatchEvent(new CustomEvent('firecrawl-api-key-updated', {

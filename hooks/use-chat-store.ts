@@ -18,6 +18,8 @@ export function useChatStore() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   // Load chats from IndexedDB on initial render
   useEffect(() => {
@@ -87,13 +89,21 @@ export function useChatStore() {
       }
     };
     
-    // Only run in browser
-    if (typeof window !== 'undefined') {
-      initializeStore();
-    } else {
-      // Mark as loaded immediately on server to avoid hydration issues
-      setIsLoaded(true);
-    }
+    initializeStore();
+  }, []);
+
+  // Listen for API key updates
+  useEffect(() => {
+    const handleApiKeyUpdate = (event: CustomEvent<{ provider: string, key: string }>) => {
+      console.log(`API key updated for ${event.detail.provider}`);
+      // No need to do anything else here, as getApiKey will fetch the latest key from localStorage
+    };
+    
+    window.addEventListener('api-key-update', handleApiKeyUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('api-key-update', handleApiKeyUpdate as EventListener);
+    };
   }, []);
 
   // Current chat getter
@@ -436,17 +446,17 @@ export function useChatStore() {
       updatedAt: new Date()
     };
     
-setChats(prev => prev.map(chat => {
-  if (chat.id === chatId) {
-    return {
-      ...chat,
-      messages: [...chat.messages, newMessage],
-      title: newTitle,
-      updatedAt: new Date()
-    };
-  }
-  return chat;
-}));
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId) {
+        return {
+          ...chat,
+          messages: [...chat.messages, newMessage],
+          title: newTitle,
+          updatedAt: new Date()
+        };
+      }
+      return chat;
+    }));
     
     try {
       // Now handle async operations
@@ -463,6 +473,11 @@ setChats(prev => prev.map(chat => {
       // Log success for debugging
       console.log(`Message saved successfully: ${newMessage.id}`);
       
+      // If the message is from the user, generate an AI response
+      if (message.role === 'user') {
+        await generateAIResponse(chatId, chatToUpdate.model);
+      }
+      
     } catch (error) {
       console.error('Error saving message:', error);
       // If there's an error, we don't need to revert the UI state
@@ -471,6 +486,311 @@ setChats(prev => prev.map(chat => {
     
     return newMessage;
   }, [chats]);
+
+  /**
+   * Get API key from localStorage based on model provider
+   */
+  const getApiKey = useCallback((model: AIModel): string => {
+    try {
+      // Determine provider based on model ID
+      let provider: string;
+      
+      if (['gpt4o', 'gpt4o-mini', 'gpt45-preview'].includes(model as string)) {
+        provider = 'openai';
+      } else if (['claude-3-sonnet', 'claude-3-sonnet-reasoning'].includes(model as string)) {
+        provider = 'anthropic';
+      } else if (model === 'gemini-flash-2') {
+        provider = 'gemini';
+      } else {
+        // Default to OpenAI for unknown models
+        provider = 'openai';
+      }
+      
+      // Get API keys from localStorage
+      const keysJson = localStorage.getItem('APP_api-keys');
+      if (keysJson) {
+        const keys = JSON.parse(keysJson);
+        return keys[provider] || '';
+      }
+    } catch (error) {
+      console.error('Error getting API key:', error);
+    }
+    return '';
+  }, []);
+
+  /**
+   * Convert internal model ID to API-specific model ID
+   */
+  const getModelIdForApiRequest = (model: AIModel): string => {
+    // Just pass through the model ID - the API will handle conversion
+    return model;
+  };
+
+  /**
+   * Generate AI response to a message
+   */
+  const generateAIResponse = useCallback(async (chatId: string, model: AIModel) => {
+    // Find the chat to update
+    const chatToUpdate = chats.find(c => c.id === chatId);
+    if (!chatToUpdate) return null;
+    
+    // Get stored API key
+    const apiKey = getApiKey(model);
+    
+    // If no API key is available, add system message indicating error
+    if (!apiKey) {
+      const errorMessage: Message = {
+        id: generateId(),
+        content: `API key required for ${model}. Please add your API key in settings.`,
+        role: 'system',
+        createdAt: new Date(),
+        isPinned: false
+      };
+      
+      // Update local state with error message
+      setChats(prev => prev.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, errorMessage],
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      }));
+      
+      // Save error message to IndexedDB
+      await chatDB.saveMessage({
+        ...errorMessage,
+        chatId
+      });
+      
+      return null;
+    }
+    
+    // Create placeholder assistant message
+    const assistantMessageId = generateId();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      content: '',
+      role: 'assistant',
+      createdAt: new Date(),
+      isPinned: false
+    };
+    
+    // Add empty message to the chat first (will be updated with streaming content)
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId) {
+        return {
+          ...chat,
+          messages: [...chat.messages, assistantMessage],
+          updatedAt: new Date()
+        };
+      }
+      return chat;
+    }));
+    
+    // Save initial empty message to IndexedDB
+    await chatDB.saveMessage({
+      ...assistantMessage,
+      chatId
+    });
+    
+    // Format messages for the API
+    const apiMessages = chatToUpdate.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    
+    // Set generating state to true
+    setIsGenerating(true);
+    
+    // Create an AbortController for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+    
+    try {
+      // Call the simplechat API directly
+      console.log('Calling simplechat API...');
+      const response = await fetch('/api/simplechat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: apiMessages,
+          apiKey,
+          model: getModelIdForApiRequest(model),
+        }),
+        signal: controller.signal,
+      });
+      
+      console.log('Simplechat API status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('No response body from API');
+      }
+      
+      // Process the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let responseText = '';
+      let chunkCount = 0;
+      
+      console.log('Starting to process stream...');
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('Stream done, total chunks processed:', chunkCount);
+          break;
+        }
+        
+        chunkCount++;
+        
+        // Decode the chunk
+        const chunk = decoder.decode(value);
+        if (chunkCount === 1 || chunkCount % 10 === 0) {
+          console.log(`Received chunk #${chunkCount}, length: ${chunk.length} bytes`);
+        }
+        
+        const dataLines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of dataLines) {
+          if (line.startsWith('data:')) {
+            try {
+              const content = line.slice(5).trim();
+              
+              if (content === '[DONE]') {
+                console.log('Received [DONE] signal');
+                continue;
+              }
+              
+              // Parse the data
+              const data = JSON.parse(content);
+              
+              if (data.type === 'text') {
+                // Update the accumulated content
+                responseText += data.value || '';
+                
+                if (chunkCount === 1 || responseText.length % 100 === 0) {
+                  console.log(`Current response length: ${responseText.length} chars`);
+                }
+                
+                // Update in-memory chat state
+                setChats(prev => prev.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      messages: chat.messages.map(msg => 
+                        msg.id === assistantMessageId 
+                          ? { ...msg, content: responseText }
+                          : msg
+                      ),
+                      updatedAt: new Date()
+                    };
+                  }
+                  return chat;
+                }));
+                
+                // Update message in IndexedDB periodically (not on every token)
+                if (responseText.length % 100 === 0) {
+                  await chatDB.saveMessage({
+                    ...assistantMessage,
+                    content: responseText,
+                    chatId
+                  });
+                }
+              } else if (data.type === 'error') {
+                console.error('Error in stream:', data.value);
+                responseText = `Error: ${data.value}`;
+                
+                // Update in-memory chat state with error
+                setChats(prev => prev.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      messages: chat.messages.map(msg => 
+                        msg.id === assistantMessageId 
+                          ? { ...msg, content: responseText }
+                          : msg
+                      ),
+                      updatedAt: new Date()
+                    };
+                  }
+                  return chat;
+                }));
+              }
+            } catch (err) {
+              console.error('Error parsing stream data:', err, 'Line:', line);
+            }
+          }
+        }
+      }
+      
+      console.log('Stream processing complete, final response length:', responseText.length);
+      
+      // Final update to IndexedDB once streaming is complete
+      await chatDB.saveMessage({
+        ...assistantMessage,
+        content: responseText,
+        chatId
+      });
+      
+    } catch (error: any) {
+      console.error('Error generating AI response:', error);
+      
+      // Don't show error for aborted requests
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+      } else {
+        // Update with error message
+        const errorContent = `Sorry, there was an error: ${error.message}. Please try again.`;
+        
+        // Update in-memory message
+        setChats(prev => prev.map(chat => {
+          if (chat.id === chatId) {
+            return {
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, content: errorContent }
+                  : msg
+              ),
+              updatedAt: new Date()
+            };
+          }
+          return chat;
+        }));
+        
+        // Update message in IndexedDB
+        await chatDB.saveMessage({
+          ...assistantMessage,
+          content: errorContent,
+          chatId
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+      setAbortController(null);
+    }
+  }, [chats, getApiKey]);
+
+  /**
+   * Stop generating AI response
+   */
+  const stopGenerating = useCallback(() => {
+    if (abortController) {
+      abortController.abort();
+      setIsGenerating(false);
+      setAbortController(null);
+    }
+  }, [abortController]);
 
   /**
    * Update a message in a chat
@@ -606,6 +926,7 @@ setChats(prev => prev.map(chat => {
     currentChatId,
     isLoaded,
     usingFallback,
+    isGenerating,
     setCurrentChatId,
     createFolder,
     updateFolder,
@@ -621,7 +942,8 @@ setChats(prev => prev.map(chat => {
     updateMessage,
     clearMessages,
     changeModel,
-    searchChats
+    searchChats,
+    stopGenerating
   };
 }
 
