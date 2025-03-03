@@ -505,7 +505,7 @@ export function useChatStore() {
         await new Promise(resolve => setTimeout(resolve, 50));
         
         // Now generate the AI response with the updated chat object
-await generateAIResponse(updatedChatToUpdate.id, updatedChatToUpdate.model, updatedChatToUpdate.messages);
+        await generateAIResponse(updatedChatToUpdate.id, updatedChatToUpdate.model, updatedChatToUpdate.messages);
       }
       
     } catch (error) {
@@ -942,13 +942,16 @@ if (latestChat && latestChat.messages.length > messages.length) {
                   return chat;
                 }));
                 
-                // Update message in IndexedDB periodically (not on every token)
-                if (responseText.length % 100 === 0) {
-                  await chatDB.saveMessage({
-                    ...assistantMessage,
-                    content: responseText,
-                    chatId
-                  });
+                // PERFORMANCE IMPROVEMENT: Save to IndexedDB less frequently (every 500 chars)
+                // and use setTimeout to make it non-blocking
+                if (responseText.length % 500 === 0) {
+                  setTimeout(() => {
+                    chatDB.saveMessage({
+                      ...assistantMessage,
+                      content: responseText,
+                      chatId
+                    });
+                  }, 0);
                 }
               } else if (data.type === 'error') {
                 console.error('Error in stream:', data.value);

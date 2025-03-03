@@ -62,6 +62,7 @@ export function ChatPanel({
   const [firecrawlApiKey, setFirecrawlApiKey] = useState('');
   const [showFirecrawlDialog, setShowFirecrawlDialog] = useState(false);
   const [browseModeActive, setBrowseModeActive] = useState(false);
+  const resizeTimeoutRef = useRef<number | null>(null);
 
   // Set initial input value for editing mode
   useEffect(() => {
@@ -110,20 +111,35 @@ export function ChatPanel({
     };
   }, []);
 
-  // Auto-resize textarea based on content
+  // Auto-resize textarea based on content - optimized with debounce
   useEffect(() => {
-    if (inputRef.current) {
-      // Reset height to auto to accurately calculate the new height
-      inputRef.current.style.height = 'auto';
-      
-      // Calculate new height based on scroll height, with a maximum of 10 lines
-      const lineHeight = 24; // Approximate line height in pixels
-      const maxHeight = lineHeight * 10;
-      const scrollHeight = inputRef.current.scrollHeight;
-      
-      inputRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
-      inputRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+    const resizeTextarea = () => {
+      if (inputRef.current) {
+        // Reset height to auto to accurately calculate the new height
+        inputRef.current.style.height = 'auto';
+        
+        // Calculate new height based on scroll height, with a maximum of 10 lines
+        const lineHeight = 24; // Approximate line height in pixels
+        const maxHeight = lineHeight * 10;
+        const scrollHeight = inputRef.current.scrollHeight;
+        
+        inputRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+        inputRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+      }
+    };
+
+    // Cancel any pending resize and schedule a new one
+    if (resizeTimeoutRef.current) {
+      cancelAnimationFrame(resizeTimeoutRef.current);
     }
+    
+    resizeTimeoutRef.current = requestAnimationFrame(resizeTextarea);
+
+    return () => {
+      if (resizeTimeoutRef.current) {
+        cancelAnimationFrame(resizeTimeoutRef.current);
+      }
+    };
   }, [input]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -459,14 +475,15 @@ export function ChatPanel({
               
               {/* Send/Stop button */}
               <Button
-                type="submit"
+                type={isLoading ? "button" : "submit"}
                 size="icon"
                 variant="ghost"
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() && !isLoading}
                 className={cn(
                   "h-7 w-7 rounded-full",
                   isLoading ? "bg-red-500 hover:bg-red-600" : "bg-gray-300 hover:bg-gray-400 dark:bg-neutral-800 dark:hover:bg-neutral-700"
                 )}
+                onClick={isLoading ? onStop : undefined}
               >
                 {isLoading ? (
                   <StopCircle className="h-4 w-4 text-white" />

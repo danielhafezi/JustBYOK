@@ -124,11 +124,11 @@ export default function Home() {
   // Always scroll to bottom when messages change
   useEffect(() => {
     if (chatContainerRef.current) {
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-      });  // Use animation frame for smoother scrolling
+      }, 50); // Small delay to ensure DOM updates
     }
   }, [uiMessages]);
 
