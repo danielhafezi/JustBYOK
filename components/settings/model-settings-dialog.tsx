@@ -362,6 +362,22 @@ export function ModelSettingsDialog({
                 Constrains effort on reasoning for reasoning models. Reducing can result in faster responses
               </p>
             </div>
+            
+            {/* Reasoning Enabled - OpenAI models - Set to false by default */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="reasoningEnabled" className="text-base">Enable Reasoning (OpenAI Models)</Label>
+                <p className="text-xs text-muted-foreground">
+                  This feature is not currently supported by OpenAI models. Leave disabled for regular models.
+                </p>
+              </div>
+              <Switch
+                id="reasoningEnabled"
+                checked={localSettings.reasoningEnabled || false}
+                onCheckedChange={(checked: boolean) => handleChange('reasoningEnabled', checked)}
+                disabled={true} // Disable this switch as it's not supported
+              />
+            </div>
 
             {/* System Prompt */}
             <div className="grid gap-2">
@@ -383,7 +399,7 @@ export function ModelSettingsDialog({
             <div className="mb-4 space-y-2">
               <h3 className="font-medium">Safety Settings (Gemini Only)</h3>
               <p className="text-xs text-muted-foreground">
-                Content is blocked based on the probability that it is harmful
+                Content is blocked based on the probability that it is harmful. These settings only apply to Gemini models and have no effect on OpenAI models.
               </p>
             </div>
 

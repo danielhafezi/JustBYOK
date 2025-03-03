@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Chat, Message, AIModel, Folder } from '@/lib/types';
+import { Chat, Message, AIModel, Folder, Settings } from '@/lib/types';
 import { 
   loadChatsFromLocalStorage, 
   loadFoldersFromStorage,
   generateId
 } from '@/lib/utils/chat-storage';
 import { chatDB } from '@/lib/chat-db';
+import { useSettingsStore } from '@/hooks/use-settings-store';
+import { storage } from '@/lib/storage';
 
 /**
  * React hook for managing chat state with IndexedDB persistence
@@ -537,6 +539,27 @@ export function useChatStore() {
     // Get stored API key
     const apiKey = getApiKey(model);
     
+    // Get model settings using the storage utility
+    let modelSettings;
+    try {
+      // Use the storage utility which handles the APP_ prefix internally
+      const settings = storage.get<Settings>('settings');
+      if (settings && settings.modelSettings) {
+        modelSettings = settings.modelSettings;
+        console.log('Using model settings from storage:', {
+          temperature: modelSettings.temperature,
+          topP: modelSettings.topP,
+          frequencyPenalty: modelSettings.frequencyPenalty,
+          presencePenalty: modelSettings.presencePenalty,
+          maxTokens: modelSettings.maxTokens
+        });
+      } else {
+        console.log('No model settings found in storage, using defaults');
+      }
+    } catch (error) {
+      console.error('Error getting model settings:', error);
+    }
+    
     // If no API key is available, add system message indicating error
     if (!apiKey) {
       const errorMessage: Message = {
@@ -621,6 +644,7 @@ export function useChatStore() {
           messages: apiMessages,
           apiKey,
           model: getModelIdForApiRequest(model),
+          modelSettings, // Include model settings from localStorage
         }),
         signal: controller.signal,
       });

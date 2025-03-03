@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Settings, DEFAULT_SETTINGS, ModelSettings } from '@/lib/types';
 import { storage } from '@/lib/storage';
 
+// This is the key used for storing settings without the 'APP_' prefix
+// The storage utility automatically adds the 'APP_' prefix
 const SETTINGS_KEY = 'settings';
 
 /**

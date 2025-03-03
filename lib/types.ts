@@ -106,6 +106,7 @@ export const DEFAULT_SETTINGS: Settings = {
     streamResponses: true,
     promptCaching: false,
     reasoningEffort: 0.5,
+    reasoningEnabled: false,
     systemPrompt: '',
     contextLength: 2048,
     contextStrategy: 'basic',
@@ -135,6 +136,7 @@ export interface ModelSettings {
   streamResponses: boolean;
   promptCaching: boolean;
   reasoningEffort: number;
+  reasoningEnabled: boolean;
   systemPrompt: string;
   contextLength: number;
   contextStrategy: string;

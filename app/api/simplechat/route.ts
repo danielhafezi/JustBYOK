@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     
     // Parse request body
     const body = await req.json();
-    const { messages, apiKey, model } = body;
+    const { messages, apiKey, model, modelSettings } = body;
     
     // Validate required fields
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -54,25 +54,61 @@ export async function POST(req: Request) {
         openAIModel = model;
     }
     
+    // Extract model settings with defaults from the settings dialog or use defaults if not provided
+    // These settings control the behavior of the AI model
+    const temperature = modelSettings?.temperature ?? 0.7; // Controls randomness: 0 = deterministic, 1 = creative
+    const maxTokens = modelSettings?.maxTokens || 1000; // Controls max length of response
+    const topP = modelSettings?.topP ?? 0.9; // Nucleus sampling (alternative to temperature)
+    const frequencyPenalty = modelSettings?.frequencyPenalty ?? 0; // Penalizes repetition of tokens based on frequency
+    const presencePenalty = modelSettings?.presencePenalty ?? 0; // Penalizes tokens based on presence in text so far
+    const systemPrompt = modelSettings?.systemPrompt || ''; // Custom system prompt if provided
+    
+    // Log detailed model settings information
+    console.log('Received model settings:', modelSettings ? 'yes' : 'no');
+    if (modelSettings) {
+      console.log('Model settings details:', {
+        temperature: modelSettings.temperature,
+        maxTokens: modelSettings.maxTokens,
+        topP: modelSettings.topP,
+        frequencyPenalty: modelSettings.frequencyPenalty,
+        presencePenalty: modelSettings.presencePenalty,
+        systemPrompt: modelSettings.systemPrompt ? 'custom' : 'none',
+      });
+    }
+    
+    // Log API request parameters
     console.log('Calling OpenAI with model:', openAIModel);
     console.log('API request parameters:', {
       model: openAIModel,
       messagesCount: messages.length,
-      temperature: 0.7,
-      max_tokens: 1000,
+      temperature,
+      max_tokens: maxTokens,
+      top_p: topP,
+      frequency_penalty: frequencyPenalty,
+      presence_penalty: presencePenalty,
+      system_prompt: systemPrompt ? 'Custom system prompt provided' : 'No custom system prompt',
       stream: true
     });
     
+    // Modify the messages array if a system prompt is provided in the model settings
+    let finalMessages = [...messages];
+    if (systemPrompt && messages.length > 0 && messages[0].role !== 'system') {
+      finalMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+    }
+    
     try {
-      // Create a streaming response
+      // Create a streaming response with all the model parameters
       const stream = await openai.chat.completions.create({
         model: openAIModel,
-        messages: messages.map(msg => ({
+        messages: finalMessages.map(msg => ({
           role: msg.role,
           content: msg.content
         })),
-        temperature: 0.7,
-        max_tokens: 1000,
+        temperature,
+        max_tokens: maxTokens,
+        top_p: topP,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
         stream: true,
       });
       
