@@ -239,7 +239,14 @@ export function useChatStore() {
    */
   const toggleFavorite = useCallback(async (chatId: string) => {
     // Find the chat to update
-    const chatToUpdate = chats.find(c => c.id === chatId);
+    const chatToUpdate = (await new Promise<Chat | undefined>(resolve => {
+      setChats(prevChats => {
+        const latestChat = prevChats.find(c => c.id === chatId);
+        resolve(latestChat);
+        return prevChats;
+      });
+    }));
+
     if (!chatToUpdate) return;
     
     // Determine the new favorite status (ensure it's a boolean, not undefined)
@@ -498,7 +505,7 @@ export function useChatStore() {
         await new Promise(resolve => setTimeout(resolve, 50));
         
         // Now generate the AI response with the updated chat object
-        await generateAIResponse(chatId, chatToUpdate.model);
+await generateAIResponse(updatedChatToUpdate.id, updatedChatToUpdate.model, updatedChatToUpdate.messages);
       }
       
     } catch (error) {
@@ -552,22 +559,14 @@ export function useChatStore() {
   /**
    * Generate AI response to a message
    */
-  const generateAIResponse = useCallback(async (chatId: string, model: AIModel) => {
-    // Find the chat to update - CRITICAL FIX: Get the latest chat from state
-    // This ensures we have the most recent messages including the user's message
-    // that triggered this response generation
-    const chatToUpdate = chats.find(c => c.id === chatId);
-    if (!chatToUpdate) {
-      console.error('Chat not found for generating AI response:', chatId);
-      return null;
-    }
+const generateAIResponse = useCallback(async (chatId: string, model: AIModel, messages: Message[]) => {
     
     console.log('Generating AI response for chat:', chatId);
-    console.log('Chat messages count:', chatToUpdate.messages.length);
+console.log('Chat messages count:', messages.length);
     
     // Print the last message for debugging
-    if (chatToUpdate.messages.length > 0) {
-      const lastMsg = chatToUpdate.messages[chatToUpdate.messages.length - 1];
+if (messages.length > 0) {
+  const lastMsg = messages[messages.length - 1];
       console.log('Last message in chat:', {
         role: lastMsg.role,
         contentStart: lastMsg.content.substring(0, 50) + (lastMsg.content.length > 50 ? '...' : '')
@@ -654,44 +653,10 @@ export function useChatStore() {
     
     // Format messages for the API - do this BEFORE creating placeholder message
     // Extract current messages, excluding any empty assistant messages
-    const existingMessages = chatToUpdate.messages
+const existingMessages = messages
       .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '');  // Filter out empty assistant messages
     
     // Ensure we have at least one user message (this is the critical fix)
-    if (existingMessages.length === 0 || !existingMessages.some(msg => msg.role === 'user')) {
-      console.warn('No user messages found in chat, adding a default user message');
-      
-      // Add a default user message if none exists
-      // This ensures we always have something to send to the API
-      const defaultUserMessage: Message = {
-        id: generateId(),
-        content: 'Hello',
-        role: 'user',
-        createdAt: new Date(),
-        isPinned: false
-      };
-      
-      // Add the default message to our existing messages
-      existingMessages.push(defaultUserMessage);
-      
-      // Update the chat with the default message
-      setChats(prev => prev.map(chat => {
-        if (chat.id === chatId) {
-          return {
-            ...chat,
-            messages: [...chat.messages, defaultUserMessage],
-            updatedAt: new Date()
-          };
-        }
-        return chat;
-      }));
-      
-      // Save the default message
-      await chatDB.saveMessage({
-        ...defaultUserMessage,
-        chatId
-      });
-    }
     
     // Format messages for the API
     const apiMessages = existingMessages.map(msg => ({
@@ -737,7 +702,7 @@ export function useChatStore() {
     // Get the latest chat state again to ensure we have any new messages that might have been added
     // after we started generating the response
     const latestChat = chats.find(c => c.id === chatId);
-    if (latestChat && latestChat.messages.length > chatToUpdate.messages.length) {
+if (latestChat && latestChat.messages.length > messages.length) {
       console.log('Chat messages changed during processing, using latest state');
       
       // Refresh our messages from the latest state
