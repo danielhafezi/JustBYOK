@@ -12,9 +12,59 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { messages, apiKey, model, modelSettings } = body;
     
-    // Validate required fields
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    // Validate required fields with detailed logging
+    console.log('Validating request fields:', {
+      messagesPresent: !!messages,
+      messagesIsArray: Array.isArray(messages),
+      messagesLength: messages ? messages.length : 0,
+      apiKeyPresent: !!apiKey,
+      modelPresent: !!model,
+      modelValue: model
+    });
+    
+    // Extract model settings with defaults from the settings dialog or use defaults if not provided
+    // These settings control the behavior of the AI model
+    const temperature = modelSettings?.temperature ?? 0.7; // Controls randomness: 0 = deterministic, 1 = creative
+    const maxTokens = modelSettings?.maxTokens || 1000; // Controls max length of response
+    const topP = modelSettings?.topP ?? 0.9; // Nucleus sampling (alternative to temperature)
+    const frequencyPenalty = modelSettings?.frequencyPenalty ?? 0; // Penalizes repetition of tokens based on frequency
+    const presencePenalty = modelSettings?.presencePenalty ?? 0; // Penalizes tokens based on presence in text so far
+    const systemPrompt = modelSettings?.systemPrompt || ''; // Custom system prompt if provided
+    
+    // Handle the case of empty messages array by adding a default message
+    // This fixes the issue with the first message in a chat
+    let processedMessages = messages;
+    if (Array.isArray(messages) && messages.length === 0) {
+      console.log('Empty messages array detected, adding default system message');
+      // Use the custom system prompt if available, otherwise use a default one
+      const systemMessage = {
+        role: 'system',
+        content: systemPrompt || 'You are a helpful assistant. The user is starting a new conversation.'
+      };
+      processedMessages = [systemMessage];
+      console.log('Using system prompt for first message:', systemMessage.content.substring(0, 50) + (systemMessage.content.length > 50 ? '...' : ''));
+    } else if (!messages || !Array.isArray(messages)) {
+      console.error('Messages validation failed:', { 
+        messagesPresent: !!messages,
+        isArray: Array.isArray(messages),
+        length: messages ? messages.length : 0
+      });
       return Response.json({ error: 'Messages are required' }, { status: 400 });
+    }
+    
+    // Validate message structure
+    const validMessageRoles = ['system', 'user', 'assistant'];
+    const invalidMessages = processedMessages.filter((msg: { role?: string; content?: string }) => 
+      !msg.role || 
+      !validMessageRoles.includes(msg.role) || 
+      typeof msg.content !== 'string'
+    );
+    
+    if (invalidMessages.length > 0) {
+      console.error('Invalid message structure found:', invalidMessages);
+      return Response.json({ 
+        error: 'Invalid message structure. Each message must have a valid role (system, user, or assistant) and content must be a string.' 
+      }, { status: 400 });
     }
     
     if (!apiKey) {
@@ -27,7 +77,7 @@ export async function POST(req: Request) {
     
     console.log('Received request to simplechat API:', {
       modelRequested: model,
-      messagesCount: messages.length
+      messagesCount: processedMessages.length
     });
     
     // Create OpenAI client
@@ -46,22 +96,13 @@ export async function POST(req: Request) {
       case 'gpt-4o-mini':
         openAIModel = 'gpt-4o-mini';
         break;
-      case 'gpt45-preview':
-        openAIModel = 'gpt-4-turbo-preview';
+      case 'gpt-45-preview':
+        openAIModel = 'gpt-4.5-turbo-preview';
         break;
       default:
         // If it's already a valid OpenAI model name, use it directly
         openAIModel = model;
     }
-    
-    // Extract model settings with defaults from the settings dialog or use defaults if not provided
-    // These settings control the behavior of the AI model
-    const temperature = modelSettings?.temperature ?? 0.7; // Controls randomness: 0 = deterministic, 1 = creative
-    const maxTokens = modelSettings?.maxTokens || 1000; // Controls max length of response
-    const topP = modelSettings?.topP ?? 0.9; // Nucleus sampling (alternative to temperature)
-    const frequencyPenalty = modelSettings?.frequencyPenalty ?? 0; // Penalizes repetition of tokens based on frequency
-    const presencePenalty = modelSettings?.presencePenalty ?? 0; // Penalizes tokens based on presence in text so far
-    const systemPrompt = modelSettings?.systemPrompt || ''; // Custom system prompt if provided
     
     // Log detailed model settings information
     console.log('Received model settings:', modelSettings ? 'yes' : 'no');
@@ -80,7 +121,7 @@ export async function POST(req: Request) {
     console.log('Calling OpenAI with model:', openAIModel);
     console.log('API request parameters:', {
       model: openAIModel,
-      messagesCount: messages.length,
+      messagesCount: processedMessages.length,
       temperature,
       max_tokens: maxTokens,
       top_p: topP,
@@ -91,9 +132,9 @@ export async function POST(req: Request) {
     });
     
     // Modify the messages array if a system prompt is provided in the model settings
-    let finalMessages = [...messages];
-    if (systemPrompt && messages.length > 0 && messages[0].role !== 'system') {
-      finalMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+    let finalMessages = [...processedMessages];
+    if (systemPrompt && processedMessages.length > 0 && processedMessages[0].role !== 'system') {
+      finalMessages = [{ role: 'system', content: systemPrompt }, ...processedMessages];
     }
     
     try {

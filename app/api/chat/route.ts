@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     let apiModel: string;
     
     // Map the model ID to the provider and specific API model
-    if (model === 'gpt4-o' || model === 'gpt-4o-mini' || model === 'gpt45-preview') {
+    if (model === 'gpt-4o' || model === 'gpt-4o-mini' || model === 'gpt-45-preview') {
       provider = 'openai';
       // Map the model ID to the specific OpenAI API model name
       switch (model) {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
         case 'gpt-4o-mini':
           apiModel = 'gpt-4o-mini';
           break;
-        case 'gpt45-preview':
+        case 'gpt-45-preview':
           apiModel = 'gpt-4.5-preview';
           break;
         default:

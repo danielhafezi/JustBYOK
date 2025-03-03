@@ -422,6 +422,8 @@ export function useChatStore() {
     const chatToUpdate = chats.find(c => c.id === chatId);
     if (!chatToUpdate) return null;
     
+    console.log(`Adding ${message.role} message to chat ${chatId}. Current message count: ${chatToUpdate.messages.length}`);
+    
     // Create the new message
     const newMessage: Message = {
       id: generateId(),
@@ -477,6 +479,25 @@ export function useChatStore() {
       
       // If the message is from the user, generate an AI response
       if (message.role === 'user') {
+        // Ensure the message is in the chat object before generating a response
+        // This is a critical fix for the "one message behind" issue
+        const updatedChatToUpdate = {
+          ...chatToUpdate,
+          messages: [...chatToUpdate.messages, newMessage]
+        };
+        
+        // Update the chat in the local chats array to ensure it has the latest messages
+        const updatedChats = chats.map(chat => 
+          chat.id === chatId ? updatedChatToUpdate : chat
+        );
+        
+        // Force a state update to ensure the message is in the state
+        setChats(updatedChats);
+        
+        // Wait a moment to ensure state is updated
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Now generate the AI response with the updated chat object
         await generateAIResponse(chatId, chatToUpdate.model);
       }
       
@@ -497,7 +518,7 @@ export function useChatStore() {
       // Determine provider based on model ID
       let provider: string;
       
-      if (['gpt-4o', 'gpt-4o-mini', 'gpt45-preview'].includes(model as string)) {
+      if (['gpt-4o', 'gpt-4o-mini', 'gpt-45-preview'].includes(model as string)) {
         provider = 'openai';
       } else if (['claude-3-sonnet', 'claude-3-sonnet-reasoning'].includes(model as string)) {
         provider = 'anthropic';
@@ -532,9 +553,28 @@ export function useChatStore() {
    * Generate AI response to a message
    */
   const generateAIResponse = useCallback(async (chatId: string, model: AIModel) => {
-    // Find the chat to update
+    // Find the chat to update - CRITICAL FIX: Get the latest chat from state
+    // This ensures we have the most recent messages including the user's message
+    // that triggered this response generation
     const chatToUpdate = chats.find(c => c.id === chatId);
-    if (!chatToUpdate) return null;
+    if (!chatToUpdate) {
+      console.error('Chat not found for generating AI response:', chatId);
+      return null;
+    }
+    
+    console.log('Generating AI response for chat:', chatId);
+    console.log('Chat messages count:', chatToUpdate.messages.length);
+    
+    // Print the last message for debugging
+    if (chatToUpdate.messages.length > 0) {
+      const lastMsg = chatToUpdate.messages[chatToUpdate.messages.length - 1];
+      console.log('Last message in chat:', {
+        role: lastMsg.role,
+        contentStart: lastMsg.content.substring(0, 50) + (lastMsg.content.length > 50 ? '...' : '')
+      });
+    } else {
+      console.warn('No messages found in chat, will use default message');
+    }
     
     // Get stored API key
     const apiKey = getApiKey(model);
@@ -545,19 +585,40 @@ export function useChatStore() {
       // Use the storage utility which handles the APP_ prefix internally
       const settings = storage.get<Settings>('settings');
       if (settings && settings.modelSettings) {
-        modelSettings = settings.modelSettings;
-        console.log('Using model settings from storage:', {
-          temperature: modelSettings.temperature,
-          topP: modelSettings.topP,
-          frequencyPenalty: modelSettings.frequencyPenalty,
-          presencePenalty: modelSettings.presencePenalty,
-          maxTokens: modelSettings.maxTokens
-        });
+        // Create a clean model settings object with just the properties we need
+        modelSettings = {
+          temperature: settings.modelSettings.temperature || 0.7,
+          topP: settings.modelSettings.topP || 0.9,
+          frequencyPenalty: settings.modelSettings.frequencyPenalty || 0,
+          presencePenalty: settings.modelSettings.presencePenalty || 0,
+          maxTokens: settings.modelSettings.maxTokens || 1000,
+          systemPrompt: settings.modelSettings.systemPrompt || ''
+        };
+        
+        console.log('Using model settings from storage:', modelSettings);
       } else {
         console.log('No model settings found in storage, using defaults');
+        // Use default settings
+        modelSettings = {
+          temperature: 0.7,
+          topP: 0.9, 
+          frequencyPenalty: 0,
+          presencePenalty: 0,
+          maxTokens: 1000,
+          systemPrompt: ''
+        };
       }
     } catch (error) {
       console.error('Error getting model settings:', error);
+      // Use default settings on error
+      modelSettings = {
+        temperature: 0.7,
+        topP: 0.9,
+        frequencyPenalty: 0,
+        presencePenalty: 0,
+        maxTokens: 1000,
+        systemPrompt: ''
+      };
     }
     
     // If no API key is available, add system message indicating error
@@ -591,7 +652,152 @@ export function useChatStore() {
       return null;
     }
     
-    // Create placeholder assistant message
+    // Format messages for the API - do this BEFORE creating placeholder message
+    // Extract current messages, excluding any empty assistant messages
+    const existingMessages = chatToUpdate.messages
+      .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '');  // Filter out empty assistant messages
+    
+    // Ensure we have at least one user message (this is the critical fix)
+    if (existingMessages.length === 0 || !existingMessages.some(msg => msg.role === 'user')) {
+      console.warn('No user messages found in chat, adding a default user message');
+      
+      // Add a default user message if none exists
+      // This ensures we always have something to send to the API
+      const defaultUserMessage: Message = {
+        id: generateId(),
+        content: 'Hello',
+        role: 'user',
+        createdAt: new Date(),
+        isPinned: false
+      };
+      
+      // Add the default message to our existing messages
+      existingMessages.push(defaultUserMessage);
+      
+      // Update the chat with the default message
+      setChats(prev => prev.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, defaultUserMessage],
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      }));
+      
+      // Save the default message
+      await chatDB.saveMessage({
+        ...defaultUserMessage,
+        chatId
+      });
+    }
+    
+    // Format messages for the API
+    const apiMessages = existingMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    
+    console.log('API messages prepared:', apiMessages.length, 'messages');
+    
+    // Add validation check for empty messages array - this should never happen
+    if (apiMessages.length === 0) {
+      console.error('No valid messages to send to API - this should never happen');
+      
+      const errorMessage: Message = {
+        id: generateId(),
+        content: 'Error: No valid messages to send. Please try again or refresh the page.',
+        role: 'system',
+        createdAt: new Date(),
+        isPinned: false
+      };
+      
+      // Update chat with error message
+      setChats(prev => prev.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, errorMessage],
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      }));
+      
+      // Save error message
+      await chatDB.saveMessage({
+        ...errorMessage,
+        chatId
+      });
+      
+      return null;
+    }
+    
+    // Get the latest chat state again to ensure we have any new messages that might have been added
+    // after we started generating the response
+    const latestChat = chats.find(c => c.id === chatId);
+    if (latestChat && latestChat.messages.length > chatToUpdate.messages.length) {
+      console.log('Chat messages changed during processing, using latest state');
+      
+      // Refresh our messages from the latest state
+      const latestMessages = latestChat.messages
+        .filter(msg => msg.role !== 'assistant' || msg.content.trim() !== '');
+        
+      // Update the API messages
+      if (latestMessages.length > existingMessages.length) {
+        const updatedApiMessages = latestMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        
+        console.log('Updated API messages count:', updatedApiMessages.length);
+        
+        // Only use the updated messages if we found more than before
+        if (updatedApiMessages.length > 0) {
+          // Replace our apiMessages array with the updated one
+          apiMessages.length = 0;
+          apiMessages.push(...updatedApiMessages);
+        }
+      }
+    }
+    
+    // Create a payload object with all needed data
+    const payload = {
+      messages: apiMessages.length > 0 ? apiMessages : [{ 
+        role: 'system', 
+        content: modelSettings?.systemPrompt || 'The user is starting a new conversation.' 
+      }],
+      apiKey,
+      model: getModelIdForApiRequest(model),
+      modelSettings // Include model settings from localStorage
+    };
+    
+    console.log('API Payload Check:', {
+      hasMessages: !!payload.messages && Array.isArray(payload.messages),
+      messagesCount: payload.messages ? payload.messages.length : 0,
+      hasApiKey: !!payload.apiKey,
+      hasModel: !!payload.model,
+      modelValue: payload.model
+    });
+    
+    // Final safety check - ensure we have at least one message
+    if (!payload.messages || !Array.isArray(payload.messages) || payload.messages.length === 0) {
+      console.error('No messages in payload after all checks - adding default message');
+      
+      // Use the system prompt from model settings if available
+      const systemPromptContent = modelSettings?.systemPrompt || 'The user is starting a new conversation.';
+      
+      payload.messages = [{ 
+        role: 'system', 
+        content: systemPromptContent
+      }];
+      
+      console.log('Added system prompt to empty messages array:', 
+        systemPromptContent.substring(0, 50) + (systemPromptContent.length > 50 ? '...' : ''));
+    }
+    
+    // Create placeholder assistant message only after preparing the API payload
     const assistantMessageId = generateId();
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -619,12 +825,6 @@ export function useChatStore() {
       chatId
     });
     
-    // Format messages for the API
-    const apiMessages = chatToUpdate.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-    
     // Set generating state to true
     setIsGenerating(true);
     
@@ -634,25 +834,80 @@ export function useChatStore() {
     
     try {
       // Call the simplechat API directly
-      console.log('Calling simplechat API...');
+      console.log('Calling simplechat API with messages:', apiMessages.length);
+      
+      // Log detailed information about the messages
+      console.log('API Messages structure check:', {
+        isArray: Array.isArray(apiMessages),
+        isEmpty: apiMessages.length === 0,
+        firstMessageRole: apiMessages.length > 0 ? apiMessages[0].role : 'none',
+        lastMessageRole: apiMessages.length > 0 ? apiMessages[apiMessages.length - 1].role : 'none'
+      });
+      
+      // Log full messages array for first chat only (helpful for debugging)
+      if (apiMessages.length <= 3) {
+        console.log('Full messages array for debugging:', JSON.stringify(apiMessages));
+      }
+      
+      // Log the last message to help with debugging
+      if (apiMessages.length > 0) {
+        console.log('Last message:', {
+          role: apiMessages[apiMessages.length - 1].role,
+          contentPreview: apiMessages[apiMessages.length - 1].content.substring(0, 50)
+        });
+      }
+      
       const response = await fetch('/api/simplechat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: apiMessages,
-          apiKey,
-          model: getModelIdForApiRequest(model),
-          modelSettings, // Include model settings from localStorage
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
       
       console.log('Simplechat API status:', response.status);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Get more detailed error info if available
+        try {
+          const errorBody = await response.json();
+          console.error('API error details:', errorBody);
+          
+          // Create an error message with more details
+          const errorMessage: Message = {
+            id: generateId(),
+            content: `Sorry, there was an error: ${errorBody.error || `HTTP error! status: ${response.status}`}. Please try again.`,
+            role: 'system',
+            createdAt: new Date(),
+            isPinned: false
+          };
+          
+          // Update the UI with the error message
+          setChats(prev => prev.map(chat => {
+            if (chat.id === chatId) {
+              // Replace the empty assistant message with the error message
+              const updatedMessages = chat.messages.filter(msg => msg.id !== assistantMessageId);
+              return {
+                ...chat,
+                messages: [...updatedMessages, errorMessage],
+                updatedAt: new Date()
+              };
+            }
+            return chat;
+          }));
+          
+          // Save the error message
+          await chatDB.saveMessage({
+            ...errorMessage,
+            chatId
+          });
+          
+          throw new Error(`HTTP error! status: ${response.status}. Details: ${JSON.stringify(errorBody)}`);
+        } catch (parseError) {
+          // If we can't parse the error JSON, fall back to basic error
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       }
       
       if (!response.body) {

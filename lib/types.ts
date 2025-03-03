@@ -30,7 +30,7 @@ export type Chat = {
 export type AIModel = 
   | 'gpt-4o' 
   | 'gpt-4o-mini' 
-  | 'gpt45-preview'
+  | 'gpt-45-preview'
   | 'claude-3-sonnet'
   | 'claude-3-sonnet-reasoning'
   | 'gemini-flash-2';
@@ -39,7 +39,7 @@ export const AI_MODELS = [
   // OpenAI Models
   { id: 'gpt-4o', name: 'GPT-4o', icon: 'sparkles', category: 'openai' },
   { id: 'gpt-4o-mini', name: 'GPT-4o mini', icon: 'sparkles', category: 'openai' },
-  { id: 'gpt45-preview', name: 'GPT 4.5 Preview', icon: 'sparkles', category: 'openai' },
+  { id: 'gpt-45-preview', name: 'GPT 4.5 Preview', icon: 'sparkles', category: 'openai' },
   
   // Anthropic Models
   { id: 'claude-3-sonnet', name: 'Claude Sonnet 3.7', icon: 'bot', category: 'anthropic' },
