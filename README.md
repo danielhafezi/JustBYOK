@@ -82,7 +82,7 @@ A modern, feature-rich chat platform that enables users to interact with various
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/JustBYOK.git
+   git clone https://github.com/danielhafezi/JustBYOK.git
    cd JustBYOK
    ```
 
