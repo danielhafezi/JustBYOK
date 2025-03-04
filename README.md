@@ -1,10 +1,14 @@
 # JustBYOK - Bring Your Own Key AI Chat Platform
 
-![Logo](logo.png)
+<p align="center">
+  <img src="logo.png" alt="Logo">
+</p>
 
 A modern, feature-rich chat platform that enables users to interact with various Language Models (LLMs) using their own API keys. Built with Next.js and React, this platform offers a seamless experience for managing conversations with different AI models while ensuring data privacy through local storage.
 
-![Hero](hero.png)
+<p align="center">
+  <img src="hero.png" alt="Hero" width="600">
+</p>
 
 ## Features
 
