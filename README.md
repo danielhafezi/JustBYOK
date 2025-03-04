@@ -1,118 +1,147 @@
-# Chatbot Platform
+# JustBYOK - Bring Your Own Key AI Chat Platform
 
-A cutting-edge chat platform that empowers users to interact with various language models (LLMs) using their own API keys. The platform enables extensive customization of LLM parameters including maximum tokens, system messages, and other model settings. All configurations and chat data are stored locally in the browser via IndexedDB and LocalStorage, ensuring quick access and offline persistence.
+![Logo](logo.png)
 
-## Table of Contents
+A modern, feature-rich chat platform that enables users to interact with various Language Models (LLMs) using their own API keys. Built with Next.js and React, this platform offers a seamless experience for managing conversations with different AI models while ensuring data privacy through local storage.
 
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Architecture](#architecture)
-- [Contributing](#contributing)
-- [License](#license)
+![Hero](hero.png)
 
 ## Features
 
-- **API Key Management**
-  - Import and manage API keys for different LLM providers.
-  - Dedicated settings dialogs for API keys enable secure storage and easy updates.
-  
-- **LLM Integration & Model Configuration**
-  - Integrate with multiple language models.
-  - Configure detailed model parameters including maximum tokens, system messages, and other model-specific options.
-  - Switch between models using an intuitive model selector.
+- **Multi-Model Support**
+  - OpenAI Models (GPT-4o, GPT-4o mini, GPT 4.5 Preview)
+  - Anthropic Models (Claude Sonnet 3.7, Claude Sonnet 3.7 Reasoning)
+  - Google Models (Gemini Flash 2)
+  - Easy model switching with an intuitive selector
 
-- **Chat Interface & Messaging**
-  - Dynamic chat UI with a comprehensive chat panel, message list, and individual message components.
-  - Supports standard and simplified chat interfaces via distinct API routes.
-  
-- **Local Data Persistence**
-  - All data (chats, settings, folders, etc.) is persisted in the browser using IndexedDB and LocalStorage.
-  - Robust storage management ensures data consistency and offline access.
+- **Secure API Key Management**
+  - Store API keys locally in the browser
+  - Support for multiple providers (OpenAI, Anthropic, Google)
+  - Secure key storage with encryption
 
-- **Organization & Customization**
-  - Create and manage folders for organizing chats.
-  - Pin important messages within chats to maintain context and easy reference.
+- **Advanced Chat Features**
+  - Real-time streaming responses
+  - Message pinning and organization
+  - Chat folder management
+  - Favorite conversations
+  - Message editing and context management
+  - File attachment support
 
-- **Responsive UI**
-  - Modern, responsive design built with Tailwind CSS.
-  - Incorporates a custom UI component library for buttons, dialogs, forms, and other interactive elements.
+- **Customization & Settings**
+  - Adjustable model parameters (temperature, tokens, etc.)
+  - System message customization
+  - Theme customization (light/dark mode)
+  - Font size and message bubble style options
 
-- **State Management**
-  - Leverages custom React hooks (e.g., `use-chat-store`, `use-settings-store`, `use-toast`) for efficient state and UI management.
+- **Data Privacy & Storage**
+  - All data stored locally in browser
+  - IndexedDB for chat history
+  - LocalStorage for settings
+  - No server-side storage required
 
-- **API Endpoints**
-  - Server-side API routes using Next.js enable seamless communication between the frontend and backend.
-  - Supports both advanced chat routing and simpler chat implementations.
+- **Modern UI/UX**
+  - Responsive design with Tailwind CSS
+  - Custom UI components with shadcn/ui
+  - Smooth animations and transitions
+  - Intuitive drag-and-drop interface
 
 ## Tech Stack
 
-- **Frontend Framework:** [Next.js](https://nextjs.org/) with React
+- **Frontend Framework:** Next.js 13+ with React 18
 - **Language:** TypeScript
-- **Styling:** Tailwind CSS, Global CSS
+- **Styling:** 
+  - Tailwind CSS
+  - shadcn/ui components
+  - Lucide React icons
 - **State Management:** Custom React hooks
-- **Data Persistence:** IndexedDB and LocalStorage
-- **API:** Next.js API routes (Node.js backend)
-- **Tooling:** ESLint, PostCSS
+- **Storage:**
+  - IndexedDB (chat history)
+  - LocalStorage (settings)
+- **AI Integration:**
+  - OpenAI API
+  - Anthropic API
+  - Google Gemini API
+- **Development Tools:**
+  - ESLint
+  - PostCSS
+  - TypeScript compiler
 
-## Installation
+## Getting Started
 
-1. **Clone the repository:**
+### Prerequisites
+
+- Node.js 18.0 or later
+- npm or yarn
+- API keys for desired LLM providers
+
+### Installation
+
+1. Clone the repository:
    ```bash
-   git clone https://your-repo-url.git
-   cd chatbot
+   git clone https://github.com/yourusername/JustBYOK.git
+   cd JustBYOK
    ```
 
-2. **Install dependencies:**
+2. Install dependencies:
    ```bash
    npm install
+   # or
+   yarn install
    ```
 
-3. **Run the development server:**
+3. Run the development server:
    ```bash
    npm run dev
+   # or
+   yarn dev
    ```
-   The application should now be running locally.
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### Configuration
+
+1. Launch the application
+2. Open Settings to configure:
+   - API keys for different providers
+   - Model parameters
+   - UI preferences
+   - System messages
 
 ## Usage
 
-1. **Launching the App:**
-   - Navigate to the local URL provided by the development server.
-   - Begin a new chat session or continue an existing conversation.
+1. **Starting a Chat:**
+   - Click "New Chat" button
+   - Select your preferred model
+   - Start typing your message
 
-2. **Managing API Keys & Models:**
-   - Open the settings dialog to configure your API keys.
-   - Choose your preferred LLM and adjust model parameters such as maximum tokens and system messages.
+2. **Managing Conversations:**
+   - Create folders for organization
+   - Pin important messages
+   - Star favorite conversations
+   - Edit messages as needed
 
-3. **Chat Interface:**
-   - Send and receive messages with the integrated chat panel.
-   - Use folder and pinning functionalities to organize chats and maintain important messages.
-
-## Configuration
-
-- **API Keys:** Use the API keys dialog to add and update your API keys securely.
-- **Model Settings:** Customize model parameters using the model settings dialog.
-- **Storage:** Data is stored locally in the browser to ensure quick retrieval and offline capability.
-
-## Architecture
-
-- **Frontend:** Built with Next.js and React, utilizing a custom UI component library.
-- **Backend:** API routes under `app/api/chat/` and `app/api/simplechat/` manage chat data and interface with LLM backends.
-- **Data Persistence:** LocalStorage and IndexedDB are used to store user settings, chat history, and other configurations.
-- **State Management:** Custom hooks such as `use-chat-store`, `use-settings-store`, and `use-toast` encapsulate state logic and UI interactions.
-- **Styling:** Tailwind CSS is used throughout the project for a modern and responsive design.
+3. **Customizing Experience:**
+   - Adjust model parameters
+   - Customize UI settings
+   - Configure system messages
+   - Manage API keys
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a pull request for any enhancements, bug fixes, or documentation improvements.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/awesome-feature`).
-3. Commit your changes and push to your fork.
-4. Submit a pull request with a detailed description of your changes.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## Acknowledgments
+
+- Built with [Next.js](https://nextjs.org/)
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Icons by [Lucide](https://lucide.dev/)
