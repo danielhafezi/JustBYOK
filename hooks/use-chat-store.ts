@@ -22,6 +22,7 @@ export function useChatStore() {
   const [usingFallback, setUsingFallback] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [pendingSaves, setPendingSaves] = useState<Set<string>>(new Set());
 
   // Load chats from IndexedDB on initial render
   useEffect(() => {
@@ -419,103 +420,73 @@ export function useChatStore() {
     await chatDB.deleteChat(chatId);
   }, [chats, currentChatId, folders]);
 
-  /**
-   * Add a message to a chat
-   */
-  const addMessage = useCallback(async (chatId: string, message: Omit<Message, 'id' | 'createdAt'>) => {
-    if (!chatId || !message?.content) return null;
-    
-    // Find the chat to update
-    const chatToUpdate = chats.find(c => c.id === chatId);
-    if (!chatToUpdate) return null;
-    
-    console.log(`Adding ${message.role} message to chat ${chatId}. Current message count: ${chatToUpdate.messages.length}`);
-    
-    // Create the new message
-    const newMessage: Message = {
-      id: generateId(),
-      content: message.content,
-      role: message.role,
-      createdAt: new Date(),
-      isPinned: false
-    };
-    
-    // Determine if we need to update the chat title
-    const shouldUpdateTitle = chatToUpdate.title === 'New Chat' && message.role === 'user';
-    const newTitle = shouldUpdateTitle
-      ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
-      : chatToUpdate.title;
-    
-    // Create a copy of the messages array to avoid reference issues
-    const updatedMessages = [...chatToUpdate.messages, newMessage];
-    
-    // Create the updated chat
-    const updatedChat = {
-      ...chatToUpdate,
-      messages: updatedMessages,
-      title: newTitle,
-      updatedAt: new Date()
-    };
-    
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        return {
-          ...chat,
-          messages: [...chat.messages, newMessage],
-          title: newTitle,
-          updatedAt: new Date()
-        };
+  // Debounced save function
+  const debouncedSave = useCallback(
+    async (chatId: string) => {
+      if (!chatDB.isAvailable || usingFallback) return;
+      
+      const chat = chats.find(c => c.id === chatId);
+      if (!chat) return;
+
+      try {
+        await chatDB.saveChat(chat);
+        setPendingSaves(prev => {
+          const next = new Set(prev);
+          next.delete(chatId);
+          return next;
+        });
+      } catch (error) {
+        console.error('Error saving chat:', error);
       }
-      return chat;
-    }));
+    },
+    [chats, usingFallback]
+  );
+
+  // Queue a chat for saving
+  const queueChatSave = useCallback((chatId: string) => {
+    setPendingSaves(prev => {
+      const next = new Set(prev);
+      next.add(chatId);
+      return next;
+    });
     
-    try {
-      // Now handle async operations
-      
-      // Persist message to IndexedDB
-      await chatDB.saveMessage({
-        ...newMessage,
-        chatId
-      });
-      
-      // Persist chat to IndexedDB without clearing messages
-      await chatDB.saveChat(updatedChat);
-      
-      // Log success for debugging
-      console.log(`Message saved successfully: ${newMessage.id}`);
-      
-      // If the message is from the user, generate an AI response
-      if (message.role === 'user') {
-        // Ensure the message is in the chat object before generating a response
-        // This is a critical fix for the "one message behind" issue
-        const updatedChatToUpdate = {
-          ...chatToUpdate,
-          messages: [...chatToUpdate.messages, newMessage]
-        };
-        
-        // Update the chat in the local chats array to ensure it has the latest messages
-        const updatedChats = chats.map(chat => 
-          chat.id === chatId ? updatedChatToUpdate : chat
-        );
-        
-        // Force a state update to ensure the message is in the state
-        setChats(updatedChats);
-        
-        // Wait a moment to ensure state is updated
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Now generate the AI response with the updated chat object
-        await generateAIResponse(updatedChatToUpdate.id, updatedChatToUpdate.model, updatedChatToUpdate.messages);
-      }
-      
-    } catch (error) {
-      console.error('Error saving message:', error);
-      // If there's an error, we don't need to revert the UI state
-      // as the message is already displayed and the user expects it to stay
-    }
-    
-    return newMessage;
-  }, [chats]);
+    const timeoutId = setTimeout(() => {
+      debouncedSave(chatId);
+    }, 1000); // Debounce for 1 second
+
+    return () => clearTimeout(timeoutId);
+  }, [debouncedSave]);
+
+  // Use the debounced save in addMessage
+  const addMessage = useCallback(
+    async (chatId: string, message: Partial<Message>) => {
+      const newMessage: Message = {
+        id: generateId(),
+        content: message.content || '',
+        role: message.role || 'user',
+        createdAt: new Date(),
+        isPinned: false,
+        ...message
+      };
+
+      setChats(prev => prev.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, newMessage],
+            updatedAt: new Date()
+          };
+        }
+        return chat;
+      }));
+
+      // Queue the save instead of saving immediately
+      queueChatSave(chatId);
+
+      return newMessage;
+    },
+    [queueChatSave]
+  );
 
   /**
    * Get API key from localStorage based on model provider
@@ -942,16 +913,13 @@ if (latestChat && latestChat.messages.length > messages.length) {
                   return chat;
                 }));
                 
-                // PERFORMANCE IMPROVEMENT: Save to IndexedDB less frequently (every 500 chars)
-                // and use setTimeout to make it non-blocking
-                if (responseText.length % 500 === 0) {
-                  setTimeout(() => {
-                    chatDB.saveMessage({
-                      ...assistantMessage,
-                      content: responseText,
-                      chatId
-                    });
-                  }, 0);
+                // Update message in IndexedDB periodically (not on every token)
+                if (responseText.length % 100 === 0) {
+                  await chatDB.saveMessage({
+                    ...assistantMessage,
+                    content: responseText,
+                    chatId
+                  });
                 }
               } else if (data.type === 'error') {
                 console.error('Error in stream:', data.value);

@@ -111,15 +111,17 @@ export default function Home() {
     if (currentChat) {
       // Ensure we have a valid messages array
       const validMessages = Array.isArray(currentChat.messages) ? currentChat.messages : [];
-      setMessages(validMessages);
+      const messagesChanged = JSON.stringify(validMessages) !== JSON.stringify(messages);
       
-      // Update UI messages
-      setUiMessages(validMessages);
+      if (messagesChanged) {
+        setMessages(validMessages);
+        setUiMessages(validMessages);
+      }
     } else {
       setMessages([]);
       setUiMessages([]);
     }
-  }, [currentChatId, setMessages, currentChat]);
+  }, [currentChatId, currentChat]);
 
   // Always scroll to bottom when messages change
   useEffect(() => {
@@ -128,7 +130,7 @@ export default function Home() {
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-      });  // Use animation frame for smoother scrolling
+      });
     }
   }, [uiMessages]);
 
