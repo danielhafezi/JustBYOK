@@ -1,0 +1,51 @@
+﻿   Ôû▓ Next.js 15.2.6
+
+   Creating an optimized production build ...
+ Ô£ô Compiled successfully
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+node.exe :  ÔÜá Using edge 
+runtime on a page currently 
+disables static generation 
+for that page
+At C:\Program 
+Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE $NPX_CLI_JS 
+$args
++   
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: ( ÔÜá Us  
+  ing edge...n for that pa   
+ ge:String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+   Generating static pages (0/6) ...
+   Generating static pages (1/6) 
+   Generating static pages (2/6) 
+   Generating static pages (4/6) 
+ Ô£ô Generating static pages (6/6)
+   Finalizing page optimization ...
+   Collecting build traces ...
+   Exporting (0/3) ...
+ Ô£ô Exporting (3/3)
+
+Route (app)                                 Size  First Load JS
+Ôöî Ôùï /                                     124 kB         241 kB
+Ôö£ Ôùï /_not-found                            977 B         102 kB
+Ôö£ ãÆ /api/chat                              139 B         101 kB
+Ôö£ ãÆ /api/simplechat                        139 B         101 kB
+Ôöö Ôùï /storage-test                        4.05 kB         118 kB
++ First Load JS shared by all             101 kB
+  Ôö£ chunks/4bd1b696-462d2a035b28f38d.js  53.3 kB
+  Ôö£ chunks/684-0461fdb36bb2ced3.js       45.4 kB
+  Ôöö other shared chunks (total)          1.96 kB
+
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

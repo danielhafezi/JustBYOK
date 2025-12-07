@@ -28,7 +28,7 @@ export function testStorageFunctions() {
   storage.set(testKey, 'Hello World');
   const retrievedValue = storage.get<string>(testKey);
   console.log('Retrieved test value:', retrievedValue);
-  
+
   // Test object storage with date
   const testObject: TestObject = {
     name: 'Test Object',
@@ -42,32 +42,32 @@ export function testStorageFunctions() {
   const retrievedObject = storage.get<TestObject>('testObject');
   console.log('Retrieved test object:', retrievedObject);
   console.log('Is createdAt a Date object?', retrievedObject?.createdAt instanceof Date);
-  
+
   // Test settings storage
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
-    themeMode: 'dark'
+    theme: 'dark'
   };
   storage.set('settings', settings);
   const retrievedSettings = storage.get<Settings>('settings', DEFAULT_SETTINGS);
   console.log('Retrieved settings:', retrievedSettings);
-  
+
   // Test API key storage
   const fakeOpenAIKey = 'sk-abc123456789';
   apiKeyStorage.setOpenAIKey(fakeOpenAIKey);
   const retrievedKey = apiKeyStorage.getOpenAIKey();
   const maskedKey = apiKeyStorage.maskApiKey(retrievedKey);
   console.log('Retrieved API key (masked):', maskedKey);
-  
+
   // Test clearing specific values
   storage.remove(testKey);
   const afterRemoval = storage.get<string>(testKey);
   console.log('Value after removal (should be undefined):', afterRemoval);
-  
+
   // Get all app keys
   const allKeys = storage.getKeys();
   console.log('All application keys:', allKeys);
-  
+
   return {
     basicValue: retrievedValue,
     objectWithDate: retrievedObject,

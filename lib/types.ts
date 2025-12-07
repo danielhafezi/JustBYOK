@@ -27,9 +27,9 @@ export type Chat = {
   pinnedMessageIds?: string[];
 };
 
-export type AIModel = 
-  | 'gpt-4o' 
-  | 'gpt-4o-mini' 
+export type AIModel =
+  | 'gpt-4o'
+  | 'gpt-4o-mini'
   | 'gpt-45-preview'
   | 'claude-3-sonnet'
   | 'claude-3-sonnet-reasoning'
@@ -40,11 +40,11 @@ export const AI_MODELS = [
   { id: 'gpt-4o', name: 'GPT-4o', icon: 'sparkles', category: 'openai' },
   { id: 'gpt-4o-mini', name: 'GPT-4o mini', icon: 'sparkles', category: 'openai' },
   { id: 'gpt-45-preview', name: 'GPT 4.5 Preview', icon: 'sparkles', category: 'openai' },
-  
+
   // Anthropic Models
   { id: 'claude-3-sonnet', name: 'Claude Sonnet 3.7', icon: 'bot', category: 'anthropic' },
   { id: 'claude-3-sonnet-reasoning', name: 'Claude Sonnet 3.7 (Reasoning)', icon: 'bot', category: 'anthropic' },
-  
+
   // Google Models
   { id: 'gemini-flash-2', name: 'Gemini Flash 2', icon: 'atom', category: 'gemini' }
 ];
@@ -57,6 +57,8 @@ export type UserProfile = {
   name: string;
   email?: string;
   avatar?: string;
+  information?: string;
+  customInstruction?: string;
   createdAt: Date;
   updatedAt: Date;
   preferences?: {

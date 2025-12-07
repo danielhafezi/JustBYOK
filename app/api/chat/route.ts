@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     // Determine provider based on model ID
     let provider: 'openai' | 'anthropic' | 'gemini';
     let apiModel: string;
-    
+
     // Map the model ID to the provider and specific API model
     if (model === 'gpt-4o' || model === 'gpt-4o-mini' || model === 'gpt-45-preview') {
       provider = 'openai';
@@ -64,10 +64,10 @@ export async function POST(req: Request) {
         case 'openai': {
           // Store the original API key if it exists
           const originalApiKey = process.env.OPENAI_API_KEY;
-          
+
           // Temporarily set the API key from the request
           process.env.OPENAI_API_KEY = apiKey;
-          
+
           try {
             // Use the OpenAI API with the environment variable
             result = streamText({
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
               messages,
               temperature: 0.7,
             });
-            
+
             return result.toDataStreamResponse();
           } finally {
             // Restore the original API key
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
         }
 
         case 'anthropic':
-        case 'gemini': 
+        case 'gemini':
         default:
           // For now, only supporting OpenAI
           return Response.json(
